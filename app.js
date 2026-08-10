@@ -200,7 +200,7 @@ function renderHome(){
   const percent=Math.round(p.mastered/p.total*100);
   const due=ALL.filter(isDue).length;
   main.innerHTML=`
-    ${heroHeader('EIKEN GRADE 4','Vocabulary Lab','10問ずつ、覚える。間違えた語は戻ってくる。端末内に学習履歴を保存します。')}
+    ${heroHeader('EIKEN GRADE 4','Vocabulary Lab','10問ずつ、覚える。間違えた語をふりかえる。端末内に学習履歴を保存します。')}
     <section class="hero-grid">
       <div class="hero-card primary">
         <div>

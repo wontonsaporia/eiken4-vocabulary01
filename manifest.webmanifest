@@ -1,7 +1,7 @@
 {
   "name": "EIKEN 4 Vocabulary Lab",
   "short_name": "Vocab Lab 4",
-  "description": "英検4級語彙を10問ずつ学べる学習Webアプリ",
+  "description": "英検4級語彙を10問からENDLESSまで柔軟に学べる学習Webアプリ",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

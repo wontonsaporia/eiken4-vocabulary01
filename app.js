@@ -1,16 +1,15 @@
-
 (() => {
 'use strict';
 
-const DATA = window.EIKEN4_DATA;
-const WORDS = DATA.words;
-const PHRASES = DATA.phrases;
+const DATA = window.EIKEN4_DATA || {meta:{},words:[],phrases:[],questions:[]};
+const WORDS = DATA.words || [];
+const PHRASES = DATA.phrases || [];
+const QUESTIONS = DATA.questions || [];
 const ALL = [
-  ...WORDS.map(x => ({...x, kind:'word', key:'w:'+x.id})),
+  ...WORDS.map(x => ({...x, kind:'word', word:x.word, key:'w:'+x.id})),
   ...PHRASES.map(x => ({...x, kind:'phrase', word:x.phrase, main_pos:'熟語・表現', countability:'', noun_note:'', key:'p:'+x.id}))
 ];
-const ITEM_MAP = new Map(ALL.map(x => [x.key, x]));
-const STORAGE_KEY = 'eiken4-vocab-lab-v1';
+const STORAGE_KEY = 'eiken4-vocab-lab-v1'; // keep the v1 key so existing progress survives
 const PER_SET = 10;
 const DAY = 86400000;
 
@@ -23,42 +22,60 @@ const main = document.querySelector('#main');
 
 function defaultState(){
   return {
-    version:1,
+    version:2,
     stats:{},
     history:[],
     fixedSet:0,
     phraseSet:0,
     streak:{count:0,lastDay:null},
-    settings:{priority:'A',questionCount:10},
-    studyKnown:{}
+    settings:{
+      sessionLength:'50',
+      customCount:50,
+      fastMode:true,
+      priority:'A',
+      category:'',
+      mainPos:''
+    }
   };
 }
 function loadState(){
+  const d=defaultState();
   try{
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return {...defaultState(), ...(parsed || {})};
-  }catch(e){ return defaultState(); }
+    const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    return {
+      ...d,
+      ...parsed,
+      version:2,
+      streak:{...d.streak,...(parsed.streak||{})},
+      settings:{...d.settings,...(parsed.settings||{})},
+      stats:parsed.stats||{},
+      history:parsed.history||[]
+    };
+  }catch(e){ return d; }
 }
-function saveState(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+function saveState(){ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
 function esc(v){
-  return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  return String(v ?? '').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 }
 function normEnglish(v){
   return String(v ?? '')
-    .toLowerCase()
-    .trim()
+    .toLowerCase().trim()
     .replace(/[’‘`]/g,"'")
     .replace(/[.,!?;:]+$/g,'')
     .replace(/\s+/g,' ');
 }
+function splitAnswers(v){
+  if(Array.isArray(v)) return v.map(String).map(x=>x.trim()).filter(Boolean);
+  return String(v||'').split(/[;；\n|]+/).map(x=>x.trim()).filter(Boolean);
+}
+function acceptedAnswers(item){
+  const all=[item.word,...splitAnswers(item.accepted_answers)];
+  const seen=new Set();
+  return all.filter(x=>{const n=normEnglish(x);if(!n||seen.has(n))return false;seen.add(n);return true;});
+}
 function shuffle(a){
   const c=[...a];
-  for(let i=c.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [c[i],c[j]]=[c[j],c[i]];
-  }
+  for(let i=c.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[c[i],c[j]]=[c[j],c[i]];}
   return c;
 }
 function sample(a,n){ return shuffle(a).slice(0,Math.min(n,a.length)); }
@@ -68,9 +85,8 @@ function localDay(d=new Date()){
 function updateDailyStreak(){
   const today=localDay();
   if(state.streak.lastDay===today) return;
-  if(!state.streak.lastDay){
-    state.streak={count:1,lastDay:today};
-  }else{
+  if(!state.streak.lastDay){ state.streak={count:1,lastDay:today}; }
+  else{
     const prev=new Date(state.streak.lastDay+'T00:00:00');
     const cur=new Date(today+'T00:00:00');
     const diff=Math.round((cur-prev)/DAY);
@@ -79,662 +95,386 @@ function updateDailyStreak(){
   saveState();
 }
 function statFor(key){
-  if(!state.stats[key]){
-    state.stats[key]={attempts:0,correct:0,wrong:0,mastery:0,exposures:0,lastAt:null,dueAt:0,lastResult:null,skills:{}};
-  }
+  if(!state.stats[key]) state.stats[key]={attempts:0,correct:0,wrong:0,mastery:0,exposures:0,lastAt:null,dueAt:0,lastResult:null,skills:{}};
   return state.stats[key];
 }
-function recordAnswer(item, ok, skill='typing'){
+function recordAnswer(item,ok,skill='typing'){
   const s=statFor(item.key);
   s.skills=s.skills||{};
   if(skill!=='typing'){
     const k=s.skills[skill]||(s.skills[skill]={attempts:0,correct:0,wrong:0,lastAt:null,lastResult:null});
-    k.attempts++;
-    k.lastAt=Date.now();
-    k.lastResult=ok?'correct':'wrong';
-    if(ok) k.correct++; else k.wrong++;
+    k.attempts++;k.lastAt=Date.now();k.lastResult=ok?'correct':'wrong';
+    if(ok)k.correct++;else k.wrong++;
     s.exposures=(s.exposures||0)+1;
-    updateDailyStreak();
-    saveState();
-    return;
+    updateDailyStreak();saveState();return;
   }
-  s.attempts++;
-  s.exposures=(s.exposures||0)+1;
-  s.lastAt=Date.now();
-  s.lastResult=ok?'correct':'wrong';
+  s.attempts++;s.exposures=(s.exposures||0)+1;s.lastAt=Date.now();s.lastResult=ok?'correct':'wrong';
   if(ok){
-    s.correct++;
-    s.mastery=Math.min(5,(s.mastery||0)+1);
+    s.correct++;s.mastery=Math.min(5,(s.mastery||0)+1);
     const intervals=[0,1,2,4,7,14,30];
     s.dueAt=Date.now()+intervals[s.mastery]*DAY;
   }else{
-    s.wrong++;
-    s.mastery=Math.max(0,(s.mastery||0)-2);
-    s.dueAt=Date.now();
+    s.wrong++;s.mastery=Math.max(0,(s.mastery||0)-2);s.dueAt=Date.now();
   }
-  updateDailyStreak();
-  saveState();
+  updateDailyStreak();saveState();
 }
-function isMastered(item){
-  const s=state.stats[item.key];
-  return !!s && s.mastery>=4 && s.attempts>=3;
-}
-function isWeak(item){
-  const s=state.stats[item.key];
-  return !!s && s.attempts>0 && (s.lastResult==='wrong' || s.mastery<=1 || s.wrong>s.correct/2);
-}
-function isDue(item){
-  const s=state.stats[item.key];
-  return !!s && s.attempts>0 && (s.dueAt||0)<=Date.now() && !isMastered(item);
-}
+function isMastered(item){const s=state.stats[item.key];return !!s&&s.mastery>=4&&s.attempts>=3;}
+function isWeak(item){const s=state.stats[item.key];return !!s&&s.attempts>0&&(s.lastResult==='wrong'||s.mastery<=1||s.wrong>s.correct/2);}
+function isDue(item){const s=state.stats[item.key];return !!s&&s.attempts>0&&(s.dueAt||0)<=Date.now()&&!isMastered(item);}
 function progressSummary(){
-  let mastered=0, learning=0, weak=0, unseen=0;
+  let mastered=0,learning=0,weak=0,unseen=0;
   ALL.forEach(item=>{
     const s=state.stats[item.key];
-    if(!s || (!s.attempts && !s.exposures)) unseen++;
-    else if(isMastered(item)) mastered++;
-    else{
-      learning++;
-      if(isWeak(item)) weak++;
-    }
+    if(!s||(!s.attempts&&!s.exposures))unseen++;
+    else if(isMastered(item))mastered++;
+    else{learning++;if(isWeak(item))weak++;}
   });
   return {mastered,learning,weak,unseen,total:ALL.length};
 }
-function priorityWords(priority=''){
-  return WORDS.filter(w=>!priority || w.priority===priority).map(w=>({...w,kind:'word',key:'w:'+w.id}));
+
+function resolvedSessionLength(){
+  const v=state.settings.sessionLength;
+  if(v==='endless') return Infinity;
+  if(v==='custom') return Math.max(1,Math.min(500,Number(state.settings.customCount)||50));
+  return Math.max(1,Number(v)||50);
 }
-function phraseItems(priority=''){
-  return PHRASES.filter(p=>!priority || p.priority===priority).map(p=>({...p,kind:'phrase',word:p.phrase,main_pos:'熟語・表現',countability:'',noun_note:'',key:'p:'+p.id}));
+function sessionLabel(){const n=resolvedSessionLength();return n===Infinity?'ENDLESS':String(n);}
+function sessionNoun(noun='問'){const n=resolvedSessionLength();return n===Infinity?`ENDLESS ${noun}`:`${n}${noun}`;}
+
+function filteredWords(){
+  const s=state.settings;
+  return WORDS.filter(w=>(!s.priority||w.priority===s.priority)&&(!s.category||w.category===s.category)&&(!s.mainPos||w.main_pos===s.mainPos))
+    .map(w=>({...w,kind:'word',key:'w:'+w.id}));
 }
-function adaptiveItems(n=10){
-  const pool=priorityWords(state.settings.priority || 'A');
-  const weak=sample(pool.filter(isWeak), Math.ceil(n*.4));
+function phraseItems(){return PHRASES.map(p=>({...p,kind:'phrase',word:p.phrase,main_pos:'熟語・表現',countability:'',noun_note:'',key:'p:'+p.id}));}
+function adaptiveItems(n=50){
+  const pool=filteredWords();
+  if(n===Infinity) n=Math.min(100,pool.length);
+  const weak=sample(pool.filter(isWeak),Math.ceil(n*.4));
   const used=new Set(weak.map(x=>x.key));
-  const due=sample(pool.filter(x=>!used.has(x.key)&&isDue(x)), Math.ceil(n*.3));
-  [...due].forEach(x=>used.add(x.key));
-  const unseen=sample(pool.filter(x=>!used.has(x.key)&&!state.stats[x.key]?.attempts), n-used.size);
+  const due=sample(pool.filter(x=>!used.has(x.key)&&isDue(x)),Math.ceil(n*.3));
+  due.forEach(x=>used.add(x.key));
+  const unseen=sample(pool.filter(x=>!used.has(x.key)&&!state.stats[x.key]?.attempts),Math.max(0,n-used.size));
   unseen.forEach(x=>used.add(x.key));
-  const rest=sample(pool.filter(x=>!used.has(x.key)), n-used.size);
+  const rest=sample(pool.filter(x=>!used.has(x.key)),Math.max(0,n-used.size));
   return shuffle([...weak,...due,...unseen,...rest]).slice(0,n);
 }
-function fixedSetItems(index=0, priority=''){
-  const pool=priorityWords(priority);
-  const total=Math.ceil(pool.length/PER_SET);
-  const safe=((index%total)+total)%total;
-  return {items:pool.slice(safe*PER_SET,safe*PER_SET+PER_SET),index:safe,total};
+function fixedRangeItems(index=0,count=10){
+  // Fixed SET numbers are stable and intentionally ignore session filters.
+  const pool=WORDS.map(w=>({...w,kind:'word',key:'w:'+w.id}));
+  const start=Math.max(0,index)*PER_SET;
+  const items=count===Infinity?pool.slice(start):pool.slice(start,start+count);
+  return {items,index,totalSets:Math.ceil(pool.length/PER_SET),start,poolLength:pool.length};
 }
-function phraseSetItems(index=0){
-  const pool=phraseItems('');
-  const total=Math.ceil(pool.length/PER_SET);
-  const safe=((index%total)+total)%total;
-  return {items:pool.slice(safe*PER_SET,safe*PER_SET+PER_SET),index:safe,total};
+function phraseRangeItems(index=0,count=10){
+  const pool=phraseItems();
+  const start=Math.max(0,index)*PER_SET;
+  const items=count===Infinity?pool.slice(start):pool.slice(start,start+count);
+  return {items,index,totalSets:Math.ceil(pool.length/PER_SET),start,poolLength:pool.length};
 }
-function weakItems(n=10){
-  const pool=ALL.filter(isWeak);
-  return sample(pool,n);
+function reviewItems(type,n){
+  const base=filteredWords();
+  const pool=type==='due'?base.filter(isDue):type==='weak'?base.filter(isWeak):base;
+  return n===Infinity?shuffle(pool):sample(pool,n);
 }
+function endlessFactory(kind){
+  if(kind==='daily') return ()=>adaptiveItems(Math.min(100,filteredWords().length));
+  if(kind==='random') return ()=>shuffle(filteredWords());
+  if(kind==='weak') return ()=>shuffle(filteredWords().filter(isWeak));
+  if(kind==='due') return ()=>shuffle(filteredWords().filter(isDue));
+  if(kind==='enja') return ()=>shuffle(filteredWords());
+  if(kind==='count') return ()=>shuffle(filteredWords().filter(w=>w.countability));
+  return ()=>shuffle(filteredWords());
+}
+
+function damerauLevenshtein(a,b){
+  a=normEnglish(a);b=normEnglish(b);
+  const d=Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
+  for(let i=0;i<=a.length;i++)d[i][0]=i;
+  for(let j=0;j<=b.length;j++)d[0][j]=j;
+  for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++){
+    const cost=a[i-1]===b[j-1]?0:1;
+    d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+cost);
+    if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]) d[i][j]=Math.min(d[i][j],d[i-2][j-2]+1);
+  }
+  return d[a.length][b.length];
+}
+function typoMessage(user,item){
+  const distances=acceptedAnswers(item).map(a=>({a,d:damerauLevenshtein(user,a)})).sort((x,y)=>x.d-y.d);
+  if(!distances.length)return '';
+  const best=distances[0];
+  const limit=best.a.length>=7?2:1;
+  if(best.d>0&&best.d<=limit) return best.d===1?'綴りが1文字だけ違います。':`綴りがかなり近いです（${best.d}文字差）。`;
+  return '';
+}
+
 function toast(msg){
   let el=document.querySelector('.toast');
-  if(!el){
-    el=document.createElement('div');el.className='toast';document.body.appendChild(el);
-  }
-  el.textContent=msg;el.classList.add('show');
-  clearTimeout(toast.t);
-  toast.t=setTimeout(()=>el.classList.remove('show'),1700);
+  if(!el){el=document.createElement('div');el.className='toast';document.body.appendChild(el);}
+  el.textContent=msg;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),1700);
 }
-function setRoute(route, opts={}){
-  history.replaceState(null,'','#'+route);
-  render(route,opts);
+function setRoute(route){history.replaceState(null,'','#'+route);render(route);}
+function currentRoute(){return(location.hash||'#home').slice(1).split('?')[0]||'home';}
+function setNav(route){document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.route===route));}
+function heroHeader(kicker,title,copy=''){return `<p class="eyebrow">${esc(kicker)}</p><h1 class="page-title">${esc(title)}</h1>${copy?`<p class="page-copy">${esc(copy)}</p>`:''}`;}
+function modeCard(code,title,copy,mode){return `<button class="mode-card" data-mode="${mode}"><div class="mode-code">${esc(code)}</div><h3>${esc(title)}</h3><p>${esc(copy)}</p></button>`;}
+
+function sessionSettingsPanel(){
+  const cats=[...new Set(WORDS.map(x=>x.category).filter(Boolean))].sort();
+  const poses=[...new Set(WORDS.map(x=>x.main_pos).filter(Boolean))].sort();
+  const v=state.settings.sessionLength;
+  return `<section class="panel session-panel">
+    <div class="session-head"><div><div class="kicker">SESSION</div><div class="session-big">${esc(sessionLabel())}</div></div><div class="session-summary">${state.settings.fastMode?'FAST ON':'FAST OFF'} · ${state.settings.priority||'ALL'}${state.settings.category?' · '+esc(state.settings.category):''}</div></div>
+    <div class="length-grid">
+      ${['10','20','30','50'].map(n=>`<button class="length-chip ${v===n?'active':''}" data-length="${n}">${n}</button>`).join('')}
+      <button class="length-chip ${v==='custom'?'active':''}" data-length="custom">CUSTOM</button>
+      <button class="length-chip ${v==='endless'?'active':''}" data-length="endless">ENDLESS</button>
+    </div>
+    <div class="session-controls">
+      <label class="field custom-count ${v==='custom'?'':'is-hidden'}">CUSTOM <input id="customCount" type="number" min="1" max="500" value="${Number(state.settings.customCount)||50}"></label>
+      <label class="field">優先度<select id="sessionPriority"><option value="">ALL</option><option value="A" ${state.settings.priority==='A'?'selected':''}>A</option><option value="B" ${state.settings.priority==='B'?'selected':''}>B</option></select></label>
+      <label class="field">分類<select id="sessionCategory"><option value="">ALL</option>${cats.map(x=>`<option value="${esc(x)}" ${state.settings.category===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="field">品詞<select id="sessionPos"><option value="">ALL</option>${poses.map(x=>`<option value="${esc(x)}" ${state.settings.mainPos===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="fast-toggle"><input id="fastMode" type="checkbox" ${state.settings.fastMode?'checked':''}><span>FAST</span><small>採点後に自動で次へ</small></label>
+    </div>
+  </section>`;
 }
-function currentRoute(){ return (location.hash||'#home').slice(1).split('?')[0] || 'home'; }
-function setNav(route){
-  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.route===route));
-}
-function heroHeader(kicker,title,copy=''){
-  return `<p class="eyebrow">${esc(kicker)}</p><h1 class="page-title">${esc(title)}</h1>${copy?`<p class="page-copy">${esc(copy)}</p>`:''}`;
+function bindSessionSettings(onChange=()=>renderTests()){
+  document.querySelectorAll('[data-length]').forEach(btn=>btn.onclick=()=>{state.settings.sessionLength=btn.dataset.length;saveState();onChange();});
+  const custom=document.querySelector('#customCount');if(custom)custom.onchange=()=>{state.settings.customCount=Math.max(1,Math.min(500,Number(custom.value)||50));saveState();onChange();};
+  const pri=document.querySelector('#sessionPriority');if(pri)pri.onchange=()=>{state.settings.priority=pri.value;state.fixedSet=0;saveState();onChange();};
+  const cat=document.querySelector('#sessionCategory');if(cat)cat.onchange=()=>{state.settings.category=cat.value;state.fixedSet=0;saveState();onChange();};
+  const pos=document.querySelector('#sessionPos');if(pos)pos.onchange=()=>{state.settings.mainPos=pos.value;state.fixedSet=0;saveState();onChange();};
+  const fast=document.querySelector('#fastMode');if(fast)fast.onchange=()=>{state.settings.fastMode=fast.checked;saveState();onChange();};
 }
 
 function renderHome(){
   setNav('home');
-  const p=progressSummary();
-  const percent=Math.round(p.mastered/p.total*100);
-  const due=ALL.filter(isDue).length;
+  const p=progressSummary();const percent=p.total?Math.round(p.mastered/p.total*100):0;const due=ALL.filter(isDue).length;
+  const display=sessionLabel();
   main.innerHTML=`
-    ${heroHeader('EIKEN GRADE 4','Vocabulary Lab','10問ずつ、覚える。間違えた語をふりかえる。端末内に学習履歴を保存します。')}
+    ${heroHeader('EIKEN GRADE 4','Vocabulary Lab','語彙を短いセットでも、長い流れでも学習できます。')}
     <section class="hero-grid">
       <div class="hero-card primary">
-        <div>
-          <div class="kicker">TODAY / SMART 10</div>
-          <div class="hero-number">10</div>
-          <div class="hero-title">今日の10問</div>
-          <div class="hero-sub muted">未学習・復習期限・間違いを混ぜて出題します。</div>
-        </div>
-        <div class="btn-row">
-          <button class="btn inverse" id="startDaily">はじめる →</button>
-          <button class="btn ghost" style="color:#fff;border-color:#444" data-route="tests">モードを選ぶ</button>
-        </div>
+        <div><div class="kicker">TODAY / SMART ${esc(display)}</div><div class="hero-number">${display==='ENDLESS'?'∞':esc(display)}</div><div class="hero-title">今日のセッション</div><div class="hero-sub muted">弱点・復習期限・未学習を混ぜて出題します。</div></div>
+        <div class="btn-row"><button class="btn inverse" id="startDaily">はじめる →</button><button class="btn ghost" style="color:#fff;border-color:#444" data-route="tests">設定</button></div>
       </div>
       <div class="hero-card">
-        <div>
-          <div class="kicker">PROGRESS</div>
-          <div class="hero-number">${percent}<span style="font-size:.35em">%</span></div>
-          <div class="hero-title">${p.mastered} / ${p.total} 定着</div>
-          <div class="hero-sub">${due}項目が復習タイミングです。連続学習 ${state.streak.count}日。</div>
-          <div class="progress-mini"><span style="width:${percent}%"></span></div>
-        </div>
-        <div class="btn-row">
-          <button class="btn" data-route="progress">進捗を見る</button>
-        </div>
+        <div><div class="kicker">PROGRESS</div><div class="hero-number">${percent}<span style="font-size:.35em">%</span></div><div class="hero-title">${p.mastered} / ${p.total} 定着</div><div class="hero-sub">${due}項目が復習タイミングです。連続学習 ${state.streak.count}日。</div><div class="progress-mini"><span style="width:${percent}%"></span></div></div>
+        <div class="btn-row"><button class="btn" data-route="progress">進捗を見る</button></div>
       </div>
     </section>
-
-    <section class="grid-4">
-      <div class="stat-card"><div class="stat-value">${p.unseen}</div><div class="stat-label">未学習</div></div>
-      <div class="stat-card"><div class="stat-value">${p.learning}</div><div class="stat-label">学習中</div></div>
-      <div class="stat-card"><div class="stat-value">${p.weak}</div><div class="stat-label">弱点</div></div>
-      <div class="stat-card"><div class="stat-value">${state.streak.count}</div><div class="stat-label">連続学習日</div></div>
-    </section>
-
-    <div class="section-head"><div><h2>学習メニュー</h2><p>1セット10項目を基本に設計</p></div></div>
+    <section class="grid-4"><div class="stat-card"><div class="stat-value">${p.unseen}</div><div class="stat-label">未学習</div></div><div class="stat-card"><div class="stat-value">${p.learning}</div><div class="stat-label">学習中</div></div><div class="stat-card"><div class="stat-value">${p.weak}</div><div class="stat-label">弱点</div></div><div class="stat-card"><div class="stat-value">${state.streak.count}</div><div class="stat-label">連続学習日</div></div></section>
+    <div class="section-head"><div><h2>学習メニュー</h2><p>現在のセッション：${esc(sessionNoun())}</p></div></div>
     <section class="mode-grid">
-      ${modeCard('STUDY','学習カード','まず10語を確認。覚えた／まだ、で自分の感触を記録。','study')}
-      ${modeCard('FIXED','固定セット','元データの順に10語ずつ。授業の宿題指定にも使えます。','fixed')}
-      ${modeCard('REVIEW','弱点復習','間違い・低定着の語だけを優先して再出題。','weak')}
-      ${modeCard('E → J','英語→日本語','4択で意味を確認。綴り以外の理解も測れます。','enja')}
-      ${modeCard('C / U','名詞の可算性','この単語表独自のC・U・C/Uなどを10問で確認。','count')}
-      ${modeCard('PHRASE','熟語・表現','103項目から日本語→英語表現を10問ずつ。','phrases')}
+      ${modeCard('STUDY','学習カード',`${sessionNoun('語')}を連続で確認します。`,'study')}
+      ${modeCard('FIXED','固定セット','SET番号を起点に、設定した語数だけ続けます。','fixed')}
+      ${modeCard('REVIEW','弱点復習','誤答・低定着の語を優先して再出題します。','weak')}
+      ${modeCard('E → J','英語→日本語','意味を4択で確認します。','enja')}
+      ${modeCard('C / U','名詞の可算性','C / U / C-U などを別スキルとして確認します。','count')}
+      ${modeCard('PHRASE','熟語・表現','熟語・表現を連続で確認します。','phrases')}
     </section>
-
-    <div class="section-head"><div><h2>データ</h2><p>${DATA.meta.wordCount} words + ${DATA.meta.phraseCount} phrases</p></div></div>
-    <section class="panel">
-      <div class="btn-row" style="margin-top:0">
-        <a class="btn" href="./downloads/eiken4_vocabulary.xlsx" download>Excel版をダウンロード</a>
-        <button class="btn" id="exportProgress">学習履歴を書き出す</button>
-      </div>
-      <div class="callout">このWebアプリは英検公式教材ではありません。元Excelの語彙・語法整理を学習用UIへ変換しています。</div>
-    </section>
-  `;
-  document.querySelector('#startDaily').onclick=()=>startQuiz('typing',adaptiveItems(10),{title:'今日の10問',source:'daily'});
+    <div class="section-head"><div><h2>データ</h2><p>${DATA.meta.wordCount||WORDS.length} words + ${DATA.meta.phraseCount||PHRASES.length} phrases</p></div></div>
+    <section class="panel"><div class="btn-row" style="margin-top:0"><a class="btn" href="./downloads/eiken4_vocabulary.xlsx" download>生徒用Excel</a><a class="btn" href="./source/eiken4_learning_master.xlsx" download>教材マスター</a><button class="btn" id="exportProgress">学習履歴を書き出す</button></div><div class="callout">教材データはExcelを原本とし、Web用データはビルド時に生成します。</div></section>`;
+  document.querySelector('#startDaily').onclick=()=>startMode('daily');
   document.querySelector('#exportProgress').onclick=exportProgress;
-}
-
-function modeCard(code,title,copy,mode){
-  return `<button class="mode-card" data-mode="${mode}">
-    <div class="mode-code">${code}</div><h3>${title}</h3><p>${copy}</p>
-  </button>`;
 }
 
 function renderTests(){
   setNav('tests');
-  const fixed=fixedSetItems(state.fixedSet,'');
-  const phrase=phraseSetItems(state.phraseSet);
+  const n=resolvedSessionLength();
+  const fixed=fixedRangeItems(state.fixedSet,n);
+  const phrase=phraseRangeItems(state.phraseSet,n);
   main.innerHTML=`
-    ${heroHeader('TEST MODES','10問テスト','同じ語彙データを、異なる角度から繰り返します。')}
-    <div class="section-head"><div><h2>単語</h2><p>889 words</p></div></div>
+    ${heroHeader('TEST MODES','Session','出題数と範囲を決めてから、学習モードを選びます。')}
+    ${sessionSettingsPanel()}
+    <div class="section-head"><div><h2>単語</h2><p>${filteredWords().length} words in range</p></div></div>
     <section class="mode-grid">
-      ${modeCard('SMART','今日の10問','弱点・復習期限・未学習を自動で組み合わせます。','daily')}
-      ${modeCard('RANDOM','ランダム10問','優先度Aを中心に、ランダムで10語。','random')}
+      ${modeCard('SMART',`今日の${sessionNoun()}`,'弱点・復習期限・未学習を混ぜます。','daily')}
+      ${modeCard('RANDOM',`ランダム${sessionNoun()}`,'指定範囲から重複なしで出題します。','random')}
       ${modeCard('E → J','英語→日本語','意味を4択で答えます。','enja')}
-      ${modeCard('C / U','可算性10問','名詞のC/U分類を4択で答えます。','count')}
+      ${modeCard('C / U','可算性','名詞区分を4択で答えます。','count')}
+      ${modeCard('STUDY','学習カード','テスト前に同じ設定語数を確認します。','study')}
     </section>
-
-    <div class="section-head"><div><h2>固定セット</h2><p>SET ${String(fixed.index+1).padStart(2,'0')} / ${fixed.total}</p></div></div>
-    <section class="panel">
-      <div class="filters">
-        <select id="fixedPriority" class="select">
-          <option value="">全単語</option>
-          <option value="A">優先度A</option>
-          <option value="B">優先度B</option>
-        </select>
-        <select id="fixedSet" class="select"></select>
-        <button class="btn dark" id="startFixed">この10語をテスト</button>
-        <button class="btn" id="studyFixed">先に覚える</button>
-      </div>
-      <div id="fixedPreview" class="word-list"></div>
-    </section>
-
-    <div class="section-head"><div><h2>熟語・表現</h2><p>SET ${String(phrase.index+1).padStart(2,'0')} / ${phrase.total}</p></div></div>
-    <section class="panel">
-      <div class="filters">
-        <select id="phraseSet" class="select"></select>
-        <button class="btn dark" id="startPhrase">この10表現をテスト</button>
-      </div>
-      <div id="phrasePreview" class="word-list"></div>
-    </section>
-  `;
-  setupFixedControls();
-  setupPhraseControls();
+    <div class="section-head"><div><h2>固定セット</h2><p>SET ${String(fixed.index+1).padStart(2,'0')} / ${fixed.totalSets}</p></div></div>
+    <section class="panel"><div class="filters"><select id="fixedSet" class="select"></select><button class="btn dark" id="startFixed">${n===Infinity?'最後まで':fixed.items.length+'語'}をテスト</button><button class="btn" id="studyFixed">先に覚える</button></div><div class="range-note">固定SETは範囲フィルタの影響を受けません。開始SETから${n===Infinity?'データ末尾まで':`最大${n}語`}を連続で扱います。</div><div id="fixedPreview" class="word-list"></div></section>
+    <div class="section-head"><div><h2>熟語・表現</h2><p>SET ${String(phrase.index+1).padStart(2,'0')} / ${phrase.totalSets}</p></div></div>
+    <section class="panel"><div class="filters"><select id="phraseSet" class="select"></select><button class="btn dark" id="startPhrase">${n===Infinity?'最後まで':phrase.items.length+'表現'}をテスト</button></div><div id="phrasePreview" class="word-list"></div></section>`;
+  bindSessionSettings(()=>renderTests());
+  setupFixedControls();setupPhraseControls();
 }
-
 function setupFixedControls(){
-  const priorityEl=document.querySelector('#fixedPriority');
   const setEl=document.querySelector('#fixedSet');
-  function refresh(){
-    const priority=priorityEl.value;
-    const pool=priorityWords(priority);
-    const total=Math.ceil(pool.length/PER_SET);
-    const current=Math.min(state.fixedSet,total-1);
-    setEl.innerHTML=Array.from({length:total},(_,i)=>`<option value="${i}" ${i===current?'selected':''}>SET ${String(i+1).padStart(2,'0')}</option>`).join('');
-    preview();
-  }
+  const n=resolvedSessionLength();
+  const total=Math.max(1,Math.ceil(WORDS.length/PER_SET));
+  const current=Math.min(state.fixedSet,total-1);
+  setEl.innerHTML=Array.from({length:total},(_,i)=>`<option value="${i}" ${i===current?'selected':''}>SET ${String(i+1).padStart(2,'0')}</option>`).join('');
   function preview(){
-    const res=fixedSetItems(Number(setEl.value||0),priorityEl.value);
-    document.querySelector('#fixedPreview').innerHTML=res.items.map(simpleRow).join('');
+    const res=fixedRangeItems(Number(setEl.value||0),n);
+    const shown=res.items.slice(0,10);
+    document.querySelector('#fixedPreview').innerHTML=shown.map(simpleRow).join('')+(res.items.length>10?`<div class="range-note">＋ ${res.items.length-10}語</div>`:'');
   }
-  priorityEl.onchange=()=>{state.fixedSet=0;saveState();refresh()};
-  setEl.onchange=()=>{state.fixedSet=Number(setEl.value);saveState();preview()};
+  setEl.onchange=()=>{state.fixedSet=Number(setEl.value);saveState();preview();};
   document.querySelector('#startFixed').onclick=()=>{
-    const res=fixedSetItems(Number(setEl.value),priorityEl.value);
-    startQuiz('typing',res.items,{title:`SET ${String(res.index+1).padStart(2,'0')}`,source:'fixed',setIndex:res.index,priority:priorityEl.value});
+    const res=fixedRangeItems(Number(setEl.value),n);
+    startQuiz('typing',res.items,{title:`SET ${String(res.index+1).padStart(2,'0')} →`,source:'fixed',setIndex:res.index,itemCount:res.items.length});
   };
-  document.querySelector('#studyFixed').onclick=()=>{
-    const res=fixedSetItems(Number(setEl.value),priorityEl.value);
-    startStudy(res.items,{title:`SET ${String(res.index+1).padStart(2,'0')}`});
-  };
-  refresh();
+  document.querySelector('#studyFixed').onclick=()=>{const res=fixedRangeItems(Number(setEl.value),n);startStudy(res.items,{title:`SET ${String(res.index+1).padStart(2,'0')} →`});};
+  preview();
 }
 function setupPhraseControls(){
   const setEl=document.querySelector('#phraseSet');
-  const total=Math.ceil(PHRASES.length/PER_SET);
-  setEl.innerHTML=Array.from({length:total},(_,i)=>`<option value="${i}" ${i===state.phraseSet?'selected':''}>SET ${String(i+1).padStart(2,'0')}</option>`).join('');
-  function preview(){
-    const res=phraseSetItems(Number(setEl.value));
-    document.querySelector('#phrasePreview').innerHTML=res.items.map(simpleRow).join('');
-  }
-  setEl.onchange=()=>{state.phraseSet=Number(setEl.value);saveState();preview()};
-  document.querySelector('#startPhrase').onclick=()=>{
-    const res=phraseSetItems(Number(setEl.value));
-    startQuiz('typing',res.items,{title:`熟語 SET ${String(res.index+1).padStart(2,'0')}`,source:'phrases',setIndex:res.index});
-  };
+  const n=resolvedSessionLength();
+  const total=Math.max(1,Math.ceil(PHRASES.length/PER_SET));
+  const current=Math.min(state.phraseSet,total-1);
+  setEl.innerHTML=Array.from({length:total},(_,i)=>`<option value="${i}" ${i===current?'selected':''}>SET ${String(i+1).padStart(2,'0')}</option>`).join('');
+  function preview(){const res=phraseRangeItems(Number(setEl.value||0),n);document.querySelector('#phrasePreview').innerHTML=res.items.slice(0,10).map(simpleRow).join('')+(res.items.length>10?`<div class="range-note">＋ ${res.items.length-10}表現</div>`:'');}
+  setEl.onchange=()=>{state.phraseSet=Number(setEl.value);saveState();preview();};
+  document.querySelector('#startPhrase').onclick=()=>{const res=phraseRangeItems(Number(setEl.value),n);startQuiz('typing',res.items,{title:`熟語 SET ${String(res.index+1).padStart(2,'0')} →`,source:'phrases',setIndex:res.index,itemCount:res.items.length});};
   preview();
 }
-function simpleRow(x){
-  return `<div class="word-row"><div><div class="word-en">${esc(x.word)}</div><div class="badges">${x.priority?`<span class="badge">${esc(x.priority)}</span>`:''}${x.main_pos?`<span class="badge">${esc(x.main_pos)}</span>`:''}</div></div><div class="word-ja">${esc(x.meaning)}</div><div></div></div>`;
-}
+function simpleRow(x){return `<div class="word-row"><div><div class="word-en">${esc(x.word)}</div>${x.ipa_us?`<div class="ipa">${esc(x.ipa_us)}</div>`:''}<div class="badges">${x.priority?`<span class="badge">${esc(x.priority)}</span>`:''}${x.main_pos?`<span class="badge">${esc(x.main_pos)}</span>`:''}</div></div><div class="word-ja">${esc(x.meaning)}</div><div></div></div>`;}
 
 function renderReview(){
-  setNav('review');
-  const weak=ALL.filter(isWeak);
-  const due=ALL.filter(isDue);
-  main.innerHTML=`
-    ${heroHeader('REVIEW','弱点復習','正解するまでではなく、時間を空けて思い出せる状態を目指します。')}
-    <section class="grid-4">
-      <div class="stat-card"><div class="stat-value">${weak.length}</div><div class="stat-label">弱点項目</div></div>
-      <div class="stat-card"><div class="stat-value">${due.length}</div><div class="stat-label">復習期限</div></div>
-      <div class="stat-card"><div class="stat-value">${ALL.filter(isMastered).length}</div><div class="stat-label">定着</div></div>
-      <div class="stat-card"><div class="stat-value">${state.streak.count}</div><div class="stat-label">連続学習日</div></div>
-    </section>
-    <div class="section-head"><div><h2>復習を始める</h2><p>10問ずつ</p></div></div>
-    <section class="mode-grid">
-      ${modeCard('WEAK 10','弱点10問','直近の誤答・低定着語から出題します。','weak')}
-      ${modeCard('DUE 10','今日の復習','復習期限を迎えた項目から出題します。','due')}
-      ${modeCard('SMART 10','混合10問','弱点・期限・未学習を混ぜます。','daily')}
-    </section>
-    <div class="section-head"><div><h2>弱点一覧</h2><p>${weak.length} items</p></div></div>
-    <section class="panel">${weak.length?weak.slice(0,80).map(simpleRow).join(''):`<div class="empty">まだ弱点データがありません。まずテストを解いてみてください。</div>`}</section>
-  `;
+  setNav('review');const weak=filteredWords().filter(isWeak);const due=filteredWords().filter(isDue);
+  main.innerHTML=`${heroHeader('REVIEW','弱点復習','現在のセッション設定を使って復習します。')}${sessionSettingsPanel()}
+    <section class="grid-4"><div class="stat-card"><div class="stat-value">${weak.length}</div><div class="stat-label">弱点</div></div><div class="stat-card"><div class="stat-value">${due.length}</div><div class="stat-label">復習期限</div></div><div class="stat-card"><div class="stat-value">${ALL.filter(isMastered).length}</div><div class="stat-label">定着</div></div><div class="stat-card"><div class="stat-value">${state.streak.count}</div><div class="stat-label">連続学習日</div></div></section>
+    <div class="section-head"><div><h2>復習を始める</h2><p>${esc(sessionNoun())}</p></div></div><section class="mode-grid">${modeCard('WEAK','弱点','直近の誤答・低定着語から出題します。','weak')}${modeCard('DUE','今日の復習','復習期限を迎えた語から出題します。','due')}${modeCard('SMART','混合','弱点・期限・未学習を混ぜます。','daily')}</section>
+    <div class="section-head"><div><h2>弱点一覧</h2><p>${weak.length} items</p></div></div><section class="panel">${weak.length?weak.slice(0,80).map(simpleRow).join(''):`<div class="empty">まだ弱点データがありません。</div>`}</section>`;
+  bindSessionSettings(()=>renderReview());
 }
 
 function renderList(){
-  setNav('list');
-  listLimit=120;
-  main.innerHTML=`
-    ${heroHeader('DATABASE','単語一覧','検索・品詞・優先度・名詞区分から絞り込めます。')}
-    <div class="list-toolbar">
-      <div class="filters">
-        <input class="input" id="searchInput" type="search" placeholder="英単語・日本語・分類で検索">
-        <select class="select" id="kindFilter"><option value="word">単語</option><option value="phrase">熟語・表現</option><option value="">すべて</option></select>
-        <select class="select" id="priorityFilter"><option value="">優先度すべて</option><option value="A">A</option><option value="B">B</option></select>
-        <select class="select" id="countFilter"><option value="">名詞区分すべて</option></select>
-      </div>
-    </div>
-    <div id="listCount" class="kicker"></div>
-    <section class="word-list" id="wordList"></section>
-    <div class="btn-row"><button class="btn" id="loadMore">さらに表示</button></div>
-  `;
+  setNav('list');listLimit=120;
+  main.innerHTML=`${heroHeader('DATABASE','単語一覧','検索・品詞・優先度・名詞区分から絞り込めます。')}<div class="list-toolbar"><div class="filters"><input class="input" id="searchInput" type="search" placeholder="英単語・日本語・分類で検索"><select class="select" id="kindFilter"><option value="word">単語</option><option value="phrase">熟語・表現</option><option value="">すべて</option></select><select class="select" id="priorityFilter"><option value="">優先度すべて</option><option value="A">A</option><option value="B">B</option></select><select class="select" id="countFilter"><option value="">名詞区分すべて</option></select></div></div><div id="listCount" class="kicker"></div><section class="word-list" id="wordList"></section><div class="btn-row"><button class="btn" id="loadMore">さらに表示</button></div>`;
   const countValues=[...new Set(WORDS.map(x=>x.countability).filter(Boolean))];
-  document.querySelector('#countFilter').innerHTML += countValues.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
-  ['searchInput','kindFilter','priorityFilter','countFilter'].forEach(id=>document.querySelector('#'+id).addEventListener('input',()=>{listLimit=120;drawList()}));
-  document.querySelector('#loadMore').onclick=()=>{listLimit+=120;drawList()};
-  drawList();
+  document.querySelector('#countFilter').innerHTML+=countValues.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  ['searchInput','kindFilter','priorityFilter','countFilter'].forEach(id=>document.querySelector('#'+id).addEventListener('input',()=>{listLimit=120;drawList();}));
+  document.querySelector('#loadMore').onclick=()=>{listLimit+=120;drawList();};drawList();
 }
 function drawList(){
-  const q=document.querySelector('#searchInput').value.trim().toLowerCase();
-  const kind=document.querySelector('#kindFilter').value;
-  const pri=document.querySelector('#priorityFilter').value;
-  const count=document.querySelector('#countFilter').value;
-  const rows=ALL.filter(x=>{
-    const hay=`${x.word} ${x.meaning} ${x.category||''} ${x.main_pos||''} ${x.noun_note||''}`.toLowerCase();
-    return (!q||hay.includes(q))&&(!kind||x.kind===kind)&&(!pri||x.priority===pri)&&(!count||x.countability===count);
-  });
-  document.querySelector('#listCount').textContent=`${rows.length} ITEMS`;
-  document.querySelector('#wordList').innerHTML=rows.slice(0,listLimit).map(fullRow).join('');
-  document.querySelector('#loadMore').hidden=listLimit>=rows.length;
+  const q=document.querySelector('#searchInput').value.trim().toLowerCase();const kind=document.querySelector('#kindFilter').value;const pri=document.querySelector('#priorityFilter').value;const count=document.querySelector('#countFilter').value;
+  const rows=ALL.filter(x=>{const hay=`${x.word} ${x.meaning} ${x.category||''} ${x.main_pos||''} ${x.noun_note||''} ${x.ipa_us||''}`.toLowerCase();return(!q||hay.includes(q))&&(!kind||x.kind===kind)&&(!pri||x.priority===pri)&&(!count||x.countability===count);});
+  document.querySelector('#listCount').textContent=`${rows.length} ITEMS`;document.querySelector('#wordList').innerHTML=rows.slice(0,listLimit).map(fullRow).join('');document.querySelector('#loadMore').hidden=listLimit>=rows.length;
 }
 function fullRow(x){
-  const s=state.stats[x.key];
-  return `<article class="word-row">
-    <div>
-      <div class="word-en">${esc(x.word)}</div>
-      <div class="badges">
-        ${x.priority?`<span class="badge">優先度 ${esc(x.priority)}</span>`:''}
-        ${x.main_pos?`<span class="badge">${esc(x.main_pos)}</span>`:''}
-        ${x.countability?`<span class="badge">${esc(x.countability)}</span>`:''}
-        ${isMastered(x)?`<span class="badge">定着</span>`:isWeak(x)?`<span class="badge">弱点</span>`:''}
-      </div>
-    </div>
-    <div>
-      <div class="word-ja">${esc(x.meaning)}</div>
-      ${x.noun_note?`<div class="word-note">${esc(x.noun_note)}</div>`:''}
-      ${x.other_usage?`<div class="word-note">他の用法：${esc(x.other_usage)}</div>`:''}
-    </div>
-    <div>${x.reference?`<a class="source-link" href="${esc(x.reference)}" target="_blank" rel="noopener">参照↗</a>`:''}</div>
-  </article>`;
+  return `<article class="word-row"><div><div class="word-en">${esc(x.word)}</div>${x.ipa_us?`<div class="ipa">${esc(x.ipa_us)}</div>`:''}<div class="badges">${x.level?`<span class="badge">LEVEL ${esc(x.level)}</span>`:''}${x.priority?`<span class="badge">優先度 ${esc(x.priority)}</span>`:''}${x.main_pos?`<span class="badge">${esc(x.main_pos)}</span>`:''}${x.countability?`<span class="badge">${esc(x.countability)}</span>`:''}${isMastered(x)?`<span class="badge">定着</span>`:isWeak(x)?`<span class="badge">弱点</span>`:''}</div></div><div><div class="word-ja">${esc(x.meaning)}</div>${x.example?`<div class="word-note">${esc(x.example)}</div>`:''}${x.noun_note?`<div class="word-note">${esc(x.noun_note)}</div>`:''}${x.collocation?`<div class="word-note">Collocation: ${esc(x.collocation)}</div>`:''}</div><div>${x.reference?`<a class="source-link" href="${esc(x.reference)}" target="_blank" rel="noopener">参照↗</a>`:''}</div></article>`;
 }
 
 function renderProgress(){
-  setNav('progress');
-  const p=progressSummary();
-  const percent=Math.round(p.mastered/p.total*100);
-  const cats=[...new Set(WORDS.map(x=>x.category).filter(Boolean))].map(cat=>{
-    const items=WORDS.filter(w=>w.category===cat).map(w=>({...w,kind:'word',key:'w:'+w.id}));
-    const mastered=items.filter(isMastered).length;
-    return {cat,total:items.length,mastered,pct:Math.round(mastered/items.length*100)};
-  }).sort((a,b)=>b.total-a.total);
-  const recent=[...state.history].reverse().slice(0,12);
-  main.innerHTML=`
-    ${heroHeader('PROGRESS','学習進捗','この端末に保存されている学習履歴です。')}
-    <section class="hero-grid">
-      <div class="hero-card primary">
-        <div><div class="kicker">MASTERY</div><div class="hero-number">${percent}<span style="font-size:.35em">%</span></div><div class="hero-title">${p.mastered}項目が定着</div></div>
-      </div>
-      <div class="hero-card">
-        <div><div class="kicker">STREAK</div><div class="hero-number">${state.streak.count}</div><div class="hero-title">連続学習日</div><div class="hero-sub">同じ日に複数回解いても1日として数えます。</div></div>
-      </div>
-    </section>
-    <section class="grid-4">
-      <div class="stat-card"><div class="stat-value">${p.unseen}</div><div class="stat-label">未学習</div></div>
-      <div class="stat-card"><div class="stat-value">${p.learning}</div><div class="stat-label">学習中</div></div>
-      <div class="stat-card"><div class="stat-value">${p.weak}</div><div class="stat-label">弱点</div></div>
-      <div class="stat-card"><div class="stat-value">${state.history.length}</div><div class="stat-label">完了テスト</div></div>
-    </section>
-
-    <div class="section-head"><div><h2>カテゴリ別</h2><p>定着率</p></div></div>
-    <section class="panel category-list">
-      ${cats.map(c=>`<div class="category-row"><div class="category-name">${esc(c.cat)}</div><div class="category-bar"><span style="width:${c.pct}%"></span></div><div>${c.pct}%</div></div>`).join('')}
-    </section>
-
-    <div class="section-head"><div><h2>最近のテスト</h2><p>${recent.length} records</p></div></div>
-    <section class="panel history-list">
-      ${recent.length?recent.map(h=>`<div class="history-row"><div><div class="history-title">${esc(h.title)}</div><div class="history-meta">${esc(h.day)} · ${esc(h.mode)}</div></div><div class="history-score">${h.score}/${h.total}</div></div>`).join(''):`<div class="empty">まだ履歴がありません。</div>`}
-    </section>
-
-    <div class="section-head"><div><h2>データ管理</h2><p>端末内保存</p></div></div>
-    <section class="panel">
-      <div class="btn-row" style="margin-top:0">
-        <button class="btn" id="exportProgress">履歴を書き出す</button>
-        <label class="btn">履歴を読み込む<input id="importProgress" type="file" accept="application/json" hidden></label>
-        <button class="btn" id="resetProgress">履歴をリセット</button>
-      </div>
-      <div class="callout">GitHub Pagesだけで動作するため、学習履歴はブラウザのlocalStorageに保存されます。別端末へ自動同期はされません。</div>
-    </section>
-  `;
-  document.querySelector('#exportProgress').onclick=exportProgress;
-  document.querySelector('#importProgress').onchange=importProgress;
-  document.querySelector('#resetProgress').onclick=resetProgress;
+  setNav('progress');const p=progressSummary();const percent=p.total?Math.round(p.mastered/p.total*100):0;
+  const cats=[...new Set(WORDS.map(x=>x.category).filter(Boolean))].map(cat=>{const items=WORDS.filter(w=>w.category===cat).map(w=>({...w,kind:'word',key:'w:'+w.id}));const mastered=items.filter(isMastered).length;return{cat,total:items.length,mastered,pct:Math.round(mastered/items.length*100)};}).sort((a,b)=>b.total-a.total);
+  const recent=[...state.history].reverse().slice(0,14);
+  main.innerHTML=`${heroHeader('PROGRESS','学習進捗','この端末に保存されている学習履歴です。')}<section class="hero-grid"><div class="hero-card primary"><div><div class="kicker">MASTERY</div><div class="hero-number">${percent}<span style="font-size:.35em">%</span></div><div class="hero-title">${p.mastered}項目が定着</div></div></div><div class="hero-card"><div><div class="kicker">STREAK</div><div class="hero-number">${state.streak.count}</div><div class="hero-title">連続学習日</div></div></div></section><section class="grid-4"><div class="stat-card"><div class="stat-value">${p.unseen}</div><div class="stat-label">未学習</div></div><div class="stat-card"><div class="stat-value">${p.learning}</div><div class="stat-label">学習中</div></div><div class="stat-card"><div class="stat-value">${p.weak}</div><div class="stat-label">弱点</div></div><div class="stat-card"><div class="stat-value">${state.history.length}</div><div class="stat-label">セッション</div></div></section>
+    <div class="section-head"><div><h2>カテゴリ別</h2><p>定着率</p></div></div><section class="panel category-list">${cats.map(c=>`<div class="category-row"><div class="category-name">${esc(c.cat)}</div><div class="category-bar"><span style="width:${c.pct}%"></span></div><div>${c.pct}%</div></div>`).join('')}</section>
+    <div class="section-head"><div><h2>最近のセッション</h2><p>${recent.length} records</p></div></div><section class="panel history-list">${recent.length?recent.map(h=>`<div class="history-row"><div><div class="history-title">${esc(h.title)}${h.partial?' · 途中終了':''}</div><div class="history-meta">${esc(h.day)} · ${esc(h.mode)} · ${h.total}問</div></div><div class="history-score">${h.score}/${h.total}</div></div>`).join(''):`<div class="empty">まだ履歴がありません。</div>`}</section>
+    <div class="section-head"><div><h2>データ管理</h2><p>端末内保存</p></div></div><section class="panel"><div class="btn-row" style="margin-top:0"><button class="btn" id="exportProgress">履歴を書き出す</button><label class="btn">履歴を読み込む<input id="importProgress" type="file" accept="application/json" hidden></label><button class="btn" id="resetProgress">履歴をリセット</button></div><div class="callout">学習履歴はブラウザのlocalStorageに保存されます。別端末へは自動同期されません。</div></section>`;
+  document.querySelector('#exportProgress').onclick=exportProgress;document.querySelector('#importProgress').onchange=importProgress;document.querySelector('#resetProgress').onclick=resetProgress;
 }
 
 function startStudy(items,meta={}){
-  if(!items.length){ toast('対象の項目がありません'); return; }
-  quiz={mode:'study',items:[...items],index:0,revealed:false,meta};
-  renderStudy();
+  if(!items.length){toast('対象の項目がありません');return;}
+  quiz={mode:'study',items:[...items],index:0,revealed:false,meta,startAt:Date.now()};renderStudy();
 }
 function renderStudy(){
-  setNav('');
-  const q=quiz, item=q.items[q.index];
-  main.innerHTML=`
-    <div class="quiz-shell">
-      <div class="quiz-top"><div><div class="quiz-set">STUDY · ${esc(q.meta.title||'10 WORDS')}</div><div class="quiz-count">${q.index+1} / ${q.items.length}</div></div><button class="btn" data-route="tests">終了</button></div>
-      <div class="progress-track"><span style="width:${(q.index/q.items.length)*100}%"></span></div>
-      <section class="quiz-card study-card" id="studyCard">
-        <div class="question-type">${q.revealed?'ANSWER':'TAP TO REVEAL'}</div>
-        <div class="study-word">${esc(item.word)}</div>
-        ${q.revealed?`<div class="study-meaning">${esc(item.meaning)}</div><div class="study-detail">${[item.main_pos,item.category,item.countability].filter(Boolean).map(esc).join(' · ')}${item.noun_note?`<br>${esc(item.noun_note)}`:''}</div>`:`<div class="study-hint">意味を思い出してからタップ</div>`}
-      </section>
-      <div class="quiz-actions">
-        ${q.revealed?`<button class="btn" id="studyNo">まだ</button><button class="btn dark" id="studyYes">覚えた</button>`:`<button class="btn dark" id="revealStudy">答えを見る</button>`}
-      </div>
-    </div>`;
-  const reveal=()=>{q.revealed=true;renderStudy()};
-  document.querySelector('#studyCard').onclick=reveal;
-  document.querySelector('#revealStudy')?.addEventListener('click',e=>{e.stopPropagation();reveal()});
-  document.querySelector('#studyYes')?.addEventListener('click',()=>studyRate(item,true));
-  document.querySelector('#studyNo')?.addEventListener('click',()=>studyRate(item,false));
+  setNav('');const q=quiz,item=q.items[q.index];
+  main.innerHTML=`<div class="quiz-shell"><div class="quiz-top"><div><div class="quiz-set">STUDY · ${esc(q.meta.title||'SESSION')}</div><div class="quiz-count">${q.index+1} / ${q.items.length}</div></div><button class="btn" id="quitStudy">終了</button></div><div class="progress-track"><span style="width:${(q.index/q.items.length)*100}%"></span></div><section class="quiz-card study-card" id="studyCard"><div class="question-type">${q.revealed?'ANSWER':'TAP TO REVEAL'}</div><div class="study-word">${esc(item.word)}</div>${item.ipa_us?`<div class="ipa large">${esc(item.ipa_us)}</div>`:''}${q.revealed?`<div class="study-meaning">${esc(item.meaning)}</div><div class="study-detail">${[item.main_pos,item.category,item.countability].filter(Boolean).map(esc).join(' · ')}${item.example?`<br>${esc(item.example)}`:''}</div>`:`<div class="study-hint">意味を思い出してからタップ</div>`}</section><div class="quiz-actions">${q.revealed?`<button class="btn" id="studyNo">まだ</button><button class="btn dark" id="studyYes">覚えた</button>`:`<button class="btn dark" id="revealStudy">答えを見る</button>`}</div></div>`;
+  const reveal=()=>{q.revealed=true;renderStudy();};document.querySelector('#studyCard').onclick=reveal;document.querySelector('#revealStudy')?.addEventListener('click',e=>{e.stopPropagation();reveal();});document.querySelector('#studyYes')?.addEventListener('click',()=>studyRate(item,true));document.querySelector('#studyNo')?.addEventListener('click',()=>studyRate(item,false));document.querySelector('#quitStudy').onclick=()=>setRoute('home');
 }
 function studyRate(item,known){
-  const s=statFor(item.key);
-  s.exposures=(s.exposures||0)+1;
-  s.selfKnown=!!known;
-  if(!known) s.dueAt=Date.now();
-  updateDailyStreak();
-  saveState();
-  quiz.index++;
-  quiz.revealed=false;
-  if(quiz.index>=quiz.items.length){toast('学習カードを完了しました');setRoute('tests');}
-  else renderStudy();
+  const s=statFor(item.key);s.exposures=(s.exposures||0)+1;s.selfKnown=!!known;if(!known)s.dueAt=Date.now();updateDailyStreak();saveState();quiz.index++;quiz.revealed=false;if(quiz.index>=quiz.items.length){toast('学習カードを完了しました');setRoute('tests');}else renderStudy();
 }
 
-function startQuiz(mode,items,meta={}){
-  if(!items || !items.length){toast('対象の項目がありません');return}
-  quiz={mode,items:[...items],index:0,answers:[],locked:false,meta};
+function startQuiz(mode,items,meta={},options={}){
+  if(!items||!items.length){toast('対象の項目がありません');return;}
+  clearQuizTimer();
+  quiz={mode,items:[...items],index:0,answers:[],locked:false,meta,startAt:Date.now(),partial:false,endless:!!options.endless,sourceFactory:options.sourceFactory||null,fastMode:state.settings.fastMode,autoTimer:null};
   renderQuiz();
 }
+function clearQuizTimer(){if(quiz?.autoTimer){clearTimeout(quiz.autoTimer);quiz.autoTimer=null;}}
 function renderQuiz(){
-  setNav('');
-  const q=quiz, item=q.items[q.index];
-  const progress=(q.index/q.items.length)*100;
-  const isTyping=q.mode==='typing';
-  const questionTitle = q.mode==='typing'
-    ? (item.kind==='phrase'?'日本語 → 英語表現':'日本語 → 英単語')
-    : q.mode==='enja'?'英単語 → 日本語'
-    : '名詞区分';
-  main.innerHTML=`
-    <div class="quiz-shell">
-      <div class="quiz-top">
-        <div><div class="quiz-set">${esc(q.meta.title||'10 QUESTION TEST')}</div><div class="quiz-count">${q.index+1} / ${q.items.length}</div></div>
-        <button class="btn" id="quitQuiz">終了</button>
-      </div>
-      <div class="progress-track"><span style="width:${progress}%"></span></div>
-      <section class="quiz-card">
-        <div class="question-type">${questionTitle}</div>
-        <div class="question-main">${esc(q.mode==='typing'?item.meaning:item.word)}</div>
-        <div class="question-meta">${q.mode==='typing'?[item.main_pos,item.category].filter(Boolean).map(esc).join(' · '):q.mode==='count'?esc(item.meaning):''}</div>
-        ${isTyping
-          ? `<input class="answer-input" id="answerInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${item.kind==='phrase'?'英語表現を入力':'英単語を入力'}">`
-          : `<div class="choice-grid" id="choiceGrid">${makeChoices(item,q.mode).map((c,i)=>`<button class="choice" data-value="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>`
-        }
-        <div class="feedback" id="feedback"></div>
-        <div class="quiz-actions">
-          ${isTyping?`<button class="btn dark" id="checkAnswer">答えを確認</button>`:''}
-          <button class="btn dark" id="nextQuestion" hidden>${q.index===q.items.length-1?'結果を見る':'次の問題'}</button>
-        </div>
-      </section>
-    </div>`;
-  document.querySelector('#quitQuiz').onclick=()=>setRoute('home');
-  if(isTyping){
-    const input=document.querySelector('#answerInput');
-    setTimeout(()=>input.focus(),30);
-    document.querySelector('#checkAnswer').onclick=()=>gradeTyping(item);
-    input.onkeydown=e=>{
-      if(e.key==='Enter'){
-        if(!q.locked) gradeTyping(item);
-        else nextQuestion();
-      }
-    };
-  }else{
-    document.querySelectorAll('.choice').forEach(btn=>btn.onclick=()=>gradeChoice(item,btn.dataset.value));
-  }
-  document.querySelector('#nextQuestion').onclick=nextQuestion;
+  clearQuizTimer();setNav('');const q=quiz,item=q.items[q.index];if(!item){finishQuiz(false);return;}
+  const endless=q.endless;const total=endless?'∞':q.items.length;const progress=endless?0:(q.index/q.items.length)*100;const isTyping=q.mode==='typing';
+  const questionTitle=q.mode==='typing'?(item.kind==='phrase'?'日本語 → 英語表現':'日本語 → 英単語'):q.mode==='enja'?'英単語 → 日本語':'名詞区分';
+  main.innerHTML=`<div class="quiz-shell"><div class="quiz-top"><div><div class="quiz-set">${esc(q.meta.title||'SESSION')}${q.fastMode?' · FAST':''}</div><div class="quiz-count">${q.index+1} / ${total}</div></div><button class="btn" id="quitQuiz">終了して保存</button></div>${endless?`<div class="endless-line">ENDLESS · 終了ボタンまで継続</div>`:`<div class="progress-track"><span style="width:${progress}%"></span></div>`}<section class="quiz-card"><div class="question-type">${questionTitle}</div><div class="question-main">${esc(q.mode==='typing'?item.meaning:item.word)}</div><div class="question-meta">${q.mode==='typing'?[item.main_pos,item.category,item.countability].filter(Boolean).map(esc).join(' · '):q.mode==='count'?esc(item.meaning):''}</div>${isTyping?`<input class="answer-input" id="answerInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${item.kind==='phrase'?'英語表現を入力':'英単語を入力'}">`:`<div class="choice-grid" id="choiceGrid">${makeChoices(item,q.mode).map(c=>`<button class="choice" data-value="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>`}<div class="feedback" id="feedback"></div><div class="quiz-actions">${isTyping?`<button class="btn dark" id="checkAnswer">答えを確認</button>`:''}<button class="btn dark" id="nextQuestion" hidden>${endless?'次の問題':q.index===q.items.length-1?'結果を見る':'次の問題'}</button></div></section></div>`;
+  document.querySelector('#quitQuiz').onclick=()=>{clearQuizTimer();if(q.answers.length)finishQuiz(true);else setRoute('home');};
+  if(isTyping){const input=document.querySelector('#answerInput');setTimeout(()=>input.focus(),30);document.querySelector('#checkAnswer').onclick=()=>gradeTyping(item);input.onkeydown=e=>{if(e.key==='Enter'){if(!q.locked)gradeTyping(item);else{clearQuizTimer();nextQuestion();}}};}
+  else document.querySelectorAll('.choice').forEach(btn=>btn.onclick=()=>gradeChoice(item,btn.dataset.value));
+  document.querySelector('#nextQuestion').onclick=()=>{clearQuizTimer();nextQuestion();};
 }
 function makeChoices(item,mode){
   if(mode==='enja'){
-    const source=(item.kind==='phrase'?phraseItems(''):priorityWords(''));
-    const candidates=source.filter(x=>x.key!==item.key && x.meaning!==item.meaning);
-    const same=candidates.filter(x=>(x.main_pos||'')===(item.main_pos||'') || (x.category||'')===(item.category||''));
-    const distract=sample(same.length>=3?same:candidates,3).map(x=>({value:x.meaning,label:x.meaning}));
-    return shuffle([{value:item.meaning,label:item.meaning},...distract]);
+    const source=item.kind==='phrase'?phraseItems():WORDS.map(w=>({...w,kind:'word',key:'w:'+w.id}));const candidates=source.filter(x=>x.key!==item.key&&x.meaning!==item.meaning);const same=candidates.filter(x=>(x.main_pos||'')===(item.main_pos||'')||(x.category||'')===(item.category||''));const distract=sample(same.length>=3?same:candidates,3).map(x=>({value:x.meaning,label:x.meaning}));return shuffle([{value:item.meaning,label:item.meaning},...distract]);
   }
-  const values=[...new Set(WORDS.map(x=>x.countability).filter(Boolean))];
-  const distract=sample(values.filter(x=>x!==item.countability),3).map(x=>({value:x,label:countLabel(x)}));
-  return shuffle([{value:item.countability,label:countLabel(item.countability)},...distract]);
+  const values=[...new Set(WORDS.map(x=>x.countability).filter(Boolean))];const distract=sample(values.filter(x=>x!==item.countability),3).map(x=>({value:x,label:countLabel(x)}));return shuffle([{value:item.countability,label:countLabel(item.countability)},...distract]);
 }
-function countLabel(v){
-  const map={
-    'C':'C — 可算名詞',
-    'U':'U — 不可算名詞',
-    'C/U':'C/U — 両用',
-    'PN':'PN — 固有名詞',
-    'PL':'PL — 複数形',
-    'PL-only':'PL-only — 複数専用',
-    'C（単複同形）':'C — 単複同形',
-    '時の表現':'時の表現',
-    '特殊':'特殊'
-  };
-  return map[v]||v;
-}
+function countLabel(v){const map={'C':'C — 可算名詞','U':'U — 不可算名詞','C/U':'C/U — 両用','PN':'PN — 固有名詞','PL':'PL — 複数形','PL-only':'PL-only — 複数専用','C（単複同形）':'C — 単複同形','時の表現':'時の表現','特殊':'特殊'};return map[v]||v;}
 function gradeTyping(item){
-  const input=document.querySelector('#answerInput');
-  const user=input.value;
-  if(!user.trim()) return;
-  const ok=normEnglish(user)===normEnglish(item.word);
-  grade(item,ok,user,item.word);
+  const input=document.querySelector('#answerInput');const user=input.value;if(!user.trim())return;const answers=acceptedAnswers(item);const nu=normEnglish(user);const ok=answers.some(a=>normEnglish(a)===nu);grade(item,ok,user,answers.join(' / '),ok?'':typoMessage(user,item));
 }
-function gradeChoice(item,value){
-  const correct=quiz.mode==='enja'?item.meaning:item.countability;
-  const ok=value===correct;
-  document.querySelectorAll('.choice').forEach(b=>b.disabled=true);
-  grade(item,ok,value,quiz.mode==='count'?countLabel(correct):correct);
-}
-function grade(item,ok,user,correct){
-  if(quiz.locked) return;
-  quiz.locked=true;
-  quiz.answers.push({item,ok,user,correct});
-  recordAnswer(item,ok,quiz.mode);
-  document.querySelector('#answerInput')?.setAttribute('disabled','');
-  const check=document.querySelector('#checkAnswer');if(check)check.hidden=true;
-  const fb=document.querySelector('#feedback');
-  fb.className='feedback show '+(ok?'good':'bad');
-  fb.innerHTML=ok?`○ 正解<strong>${esc(item.word)}</strong>`:`× 不正解<strong>${esc(correct)}</strong>`;
-  document.querySelector('#nextQuestion').hidden=false;
+function gradeChoice(item,value){const correct=quiz.mode==='enja'?item.meaning:item.countability;const ok=value===correct;document.querySelectorAll('.choice').forEach(b=>b.disabled=true);grade(item,ok,value,quiz.mode==='count'?countLabel(correct):correct,'');}
+function grade(item,ok,user,correct,note=''){
+  if(quiz.locked)return;quiz.locked=true;quiz.answers.push({item,ok,user,correct,note});recordAnswer(item,ok,quiz.mode);document.querySelector('#answerInput')?.setAttribute('disabled','');const check=document.querySelector('#checkAnswer');if(check)check.hidden=true;const fb=document.querySelector('#feedback');fb.className='feedback show '+(ok?'good':'bad');fb.innerHTML=ok?`○ 正解<strong>${esc(item.word)}</strong>`:`× 不正解<strong>${esc(correct)}</strong>${note?`<div class="typo-note">${esc(note)}</div>`:''}`;document.querySelector('#nextQuestion').hidden=false;
+  if(quiz.fastMode){const wait=ok?430:1050;quiz.autoTimer=setTimeout(()=>nextQuestion(),wait);}
 }
 function nextQuestion(){
-  quiz.index++;
-  quiz.locked=false;
-  if(quiz.index>=quiz.items.length) finishQuiz();
-  else renderQuiz();
+  clearQuizTimer();quiz.index++;quiz.locked=false;
+  if(quiz.endless&&quiz.index>=quiz.items.length){const next=quiz.sourceFactory?quiz.sourceFactory():[];if(!next.length){finishQuiz(false);return;}quiz.items.push(...next);}
+  if(!quiz.endless&&quiz.index>=quiz.items.length)finishQuiz(false);else renderQuiz();
 }
-function finishQuiz(){
-  const q=quiz;
-  const score=q.answers.filter(a=>a.ok).length;
-  state.history.push({day:localDay(),title:q.meta.title||'10問テスト',mode:q.mode,score,total:q.items.length});
-  if(state.history.length>100) state.history=state.history.slice(-100);
-  if(q.meta.source==='fixed' && score>=8) state.fixedSet=(q.meta.setIndex||0)+1;
-  if(q.meta.source==='phrases' && score>=8) state.phraseSet=(q.meta.setIndex||0)+1;
-  saveState();
-  renderResult(score);
+function finishQuiz(partial=false){
+  clearQuizTimer();const q=quiz;if(!q)return;const total=q.answers.length;const score=q.answers.filter(a=>a.ok).length;if(!total){setRoute('home');return;}
+  state.history.push({day:localDay(),title:q.meta.title||'Session',mode:q.mode,score,total,partial:!!partial,durationSec:Math.round((Date.now()-q.startAt)/1000)});if(state.history.length>200)state.history=state.history.slice(-200);
+  const ratio=score/total;
+  if(!partial&&q.meta.source==='fixed'&&ratio>=.8)state.fixedSet=(q.meta.setIndex||0)+Math.max(1,Math.ceil(total/PER_SET));
+  if(!partial&&q.meta.source==='phrases'&&ratio>=.8)state.phraseSet=(q.meta.setIndex||0)+Math.max(1,Math.ceil(total/PER_SET));
+  saveState();renderResult(score,partial);
 }
-function renderResult(score){
-  setNav('');
-  const q=quiz;
-  const wrong=q.answers.filter(a=>!a.ok);
-  main.innerHTML=`
-    <div class="quiz-shell">
-      <p class="eyebrow">RESULT</p>
-      <div class="result-score">${score}<span style="font-size:.35em"> / ${q.items.length}</span></div>
-      <div class="result-label">${score===q.items.length?'全問正解。':`${wrong.length}項目を復習候補に登録しました。`}</div>
-      <div class="btn-row">
-        ${wrong.length?`<button class="btn red" id="retryWrong">間違いだけ再テスト</button>`:''}
-        ${q.meta.source==='fixed'?`<button class="btn dark" id="nextFixed">次の10語</button>`:''}
-        ${q.meta.source==='phrases'?`<button class="btn dark" id="nextPhrase">次の10表現</button>`:''}
-        <button class="btn" data-route="home">ホームへ</button>
-      </div>
-      <section class="result-list">
-        ${q.answers.map(a=>`<div class="result-row">
-          <div class="result-mark ${a.ok?'ok':'ng'}">${a.ok?'○':'×'}</div>
-          <div><div class="result-word">${esc(a.item.word)}</div><div class="result-meaning">${esc(a.item.meaning)}</div></div>
-          <div class="badge">${esc(a.user)}</div>
-        </div>`).join('')}
-      </section>
-    </div>`;
+function renderResult(score,partial=false){
+  setNav('');const q=quiz;const wrong=q.answers.filter(a=>!a.ok);const total=q.answers.length;
+  main.innerHTML=`<div class="quiz-shell"><p class="eyebrow">${partial?'SESSION SAVED':'RESULT'}</p><div class="result-score">${score}<span style="font-size:.35em"> / ${total}</span></div><div class="result-label">${partial?`途中終了：${total}問の結果を保存しました。`:score===total?'全問正解。':`${wrong.length}項目を復習候補に登録しました。`}</div><div class="btn-row">${wrong.length?`<button class="btn red" id="retryWrong">間違いだけ再テスト</button>`:''}${q.meta.source==='fixed'&&!partial?`<button class="btn dark" id="nextFixed">続きから</button>`:''}${q.meta.source==='phrases'&&!partial?`<button class="btn dark" id="nextPhrase">続きから</button>`:''}<button class="btn" data-route="home">ホームへ</button></div><section class="result-list">${q.answers.map(a=>`<div class="result-row"><div class="result-mark ${a.ok?'ok':'ng'}">${a.ok?'○':'×'}</div><div><div class="result-word">${esc(a.item.word)}</div><div class="result-meaning">${esc(a.item.meaning)}${a.note?` · ${esc(a.note)}`:''}</div></div><div class="badge">${esc(a.user)}</div></div>`).join('')}</section></div>`;
   document.querySelector('#retryWrong')?.addEventListener('click',()=>startQuiz(q.mode,wrong.map(x=>x.item),{title:'間違い復習',source:'review'}));
-  document.querySelector('#nextFixed')?.addEventListener('click',()=>{
-    const next=fixedSetItems((q.meta.setIndex||0)+1,q.meta.priority||'');
-    startQuiz('typing',next.items,{title:`SET ${String(next.index+1).padStart(2,'0')}`,source:'fixed',setIndex:next.index,priority:q.meta.priority||''});
-  });
-  document.querySelector('#nextPhrase')?.addEventListener('click',()=>{
-    const next=phraseSetItems((q.meta.setIndex||0)+1);
-    startQuiz('typing',next.items,{title:`熟語 SET ${String(next.index+1).padStart(2,'0')}`,source:'phrases',setIndex:next.index});
-  });
+  document.querySelector('#nextFixed')?.addEventListener('click',()=>{const n=resolvedSessionLength();const next=fixedRangeItems(state.fixedSet,n);startQuiz('typing',next.items,{title:`SET ${String(next.index+1).padStart(2,'0')} →`,source:'fixed',setIndex:next.index,itemCount:next.items.length});});
+  document.querySelector('#nextPhrase')?.addEventListener('click',()=>{const n=resolvedSessionLength();const next=phraseRangeItems(state.phraseSet,n);startQuiz('typing',next.items,{title:`熟語 SET ${String(next.index+1).padStart(2,'0')} →`,source:'phrases',setIndex:next.index,itemCount:next.items.length});});
+  bindCommon();
 }
 
-function exportProgress(){
-  const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),state},null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='eiken4-vocab-progress.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-function importProgress(e){
-  const file=e.target.files?.[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      const parsed=JSON.parse(reader.result);
-      if(!parsed.state) throw new Error();
-      state={...defaultState(),...parsed.state};
-      saveState();toast('学習履歴を読み込みました');renderProgress();
-    }catch(err){toast('履歴ファイルを読み込めませんでした')}
-  };
-  reader.readAsText(file);
-}
-function resetProgress(){
-  if(!confirm('この端末の学習履歴をすべて削除しますか？'))return;
-  state=defaultState();saveState();toast('学習履歴をリセットしました');renderProgress();
-}
+function exportProgress(){const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),appVersion:2,state},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='eiken-vocab-progress.json';a.click();URL.revokeObjectURL(a.href);}
+function importProgress(e){const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(reader.result);if(!parsed.state)throw new Error();const d=defaultState();state={...d,...parsed.state,version:2,settings:{...d.settings,...(parsed.state.settings||{})},streak:{...d.streak,...(parsed.state.streak||{})}};saveState();toast('学習履歴を読み込みました');renderProgress();}catch(err){toast('履歴ファイルを読み込めませんでした');}};reader.readAsText(file);}
+function resetProgress(){if(!confirm('この端末の学習履歴をすべて削除しますか？'))return;state=defaultState();saveState();toast('学習履歴をリセットしました');renderProgress();}
 
 function startMode(mode){
-  if(mode==='daily') startQuiz('typing',adaptiveItems(10),{title:'今日の10問',source:'daily'});
-  if(mode==='random') startQuiz('typing',sample(priorityWords('A'),10),{title:'ランダム10問',source:'random'});
-  if(mode==='weak') {
-    const items=weakItems(10);
-    if(items.length) startQuiz('typing',items,{title:'弱点10問',source:'review'}); else toast('弱点データがまだありません');
+  const n=resolvedSessionLength();const endless=n===Infinity;
+  if(mode==='daily'){
+    const items=adaptiveItems(endless?Math.min(100,filteredWords().length):n);startQuiz('typing',items,{title:`SMART ${sessionLabel()}`,source:'daily'},{endless,sourceFactory:endless?endlessFactory('daily'):null});
   }
-  if(mode==='due') {
-    const items=sample(ALL.filter(isDue),10);
-    if(items.length) startQuiz('typing',items,{title:'今日の復習',source:'review'}); else toast('今日の復習項目はありません');
+  if(mode==='random'){
+    const pool=filteredWords();const items=endless?shuffle(pool):sample(pool,n);startQuiz('typing',items,{title:`RANDOM ${sessionLabel()}`,source:'random'},{endless,sourceFactory:endless?endlessFactory('random'):null});
   }
-  if(mode==='enja') startQuiz('enja',sample(priorityWords('A'),10),{title:'英語→日本語',source:'random'});
-  if(mode==='count') {
-    const nouns=WORDS.filter(w=>w.countability).map(w=>({...w,kind:'word',key:'w:'+w.id}));
-    startQuiz('count',sample(nouns,10),{title:'名詞の可算性',source:'random'});
+  if(mode==='weak'){
+    const items=reviewItems('weak',n);if(items.length)startQuiz('typing',items,{title:`WEAK ${sessionLabel()}`,source:'review'},{endless,sourceFactory:endless?endlessFactory('weak'):null});else toast('弱点データがまだありません');
   }
-  if(mode==='phrases') {
-    const res=phraseSetItems(state.phraseSet);
-    startQuiz('typing',res.items,{title:`熟語 SET ${String(res.index+1).padStart(2,'0')}`,source:'phrases',setIndex:res.index});
+  if(mode==='due'){
+    const items=reviewItems('due',n);if(items.length)startQuiz('typing',items,{title:`DUE ${sessionLabel()}`,source:'review'},{endless,sourceFactory:endless?endlessFactory('due'):null});else toast('今日の復習項目はありません');
   }
-  if(mode==='fixed') setRoute('tests');
-  if(mode==='study') startStudy(adaptiveItems(10),{title:'今日の学習カード'});
+  if(mode==='enja'){
+    const pool=filteredWords();const items=endless?shuffle(pool):sample(pool,n);startQuiz('enja',items,{title:`E → J ${sessionLabel()}`,source:'random'},{endless,sourceFactory:endless?endlessFactory('enja'):null});
+  }
+  if(mode==='count'){
+    const pool=filteredWords().filter(w=>w.countability);const items=endless?shuffle(pool):sample(pool,n);startQuiz('count',items,{title:`C / U ${sessionLabel()}`,source:'random'},{endless,sourceFactory:endless?endlessFactory('count'):null});
+  }
+  if(mode==='phrases'){
+    const res=phraseRangeItems(state.phraseSet,n);startQuiz('typing',res.items,{title:`熟語 SET ${String(res.index+1).padStart(2,'0')} →`,source:'phrases',setIndex:res.index,itemCount:res.items.length});
+  }
+  if(mode==='fixed')setRoute('tests');
+  if(mode==='study'){
+    const items=adaptiveItems(endless?Math.min(100,filteredWords().length):n);startStudy(items,{title:`STUDY ${endless?'100':sessionLabel()}`});
+  }
 }
 
 function render(route=currentRoute()){
   window.scrollTo(0,0);
-  if(route==='home') renderHome();
-  else if(route==='tests') renderTests();
-  else if(route==='review') renderReview();
-  else if(route==='list') renderList();
-  else if(route==='progress') renderProgress();
-  else renderHome();
+  if(route==='home')renderHome();else if(route==='tests')renderTests();else if(route==='review')renderReview();else if(route==='list')renderList();else if(route==='progress')renderProgress();else renderHome();
   bindCommon();
 }
 function bindCommon(){
@@ -742,26 +482,11 @@ function bindCommon(){
   document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>startMode(el.dataset.mode));
 }
 window.addEventListener('hashchange',()=>render(currentRoute()));
-
 window.addEventListener('online',()=>document.querySelector('#offlineBadge').hidden=true);
 window.addEventListener('offline',()=>document.querySelector('#offlineBadge').hidden=false);
 document.querySelector('#offlineBadge').hidden=navigator.onLine;
-
-window.addEventListener('beforeinstallprompt',e=>{
-  e.preventDefault();deferredInstallPrompt=e;
-  document.querySelector('#installBtn').hidden=false;
-});
-document.querySelector('#installBtn').onclick=async()=>{
-  if(!deferredInstallPrompt)return;
-  deferredInstallPrompt.prompt();
-  await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt=null;
-  document.querySelector('#installBtn').hidden=true;
-};
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-}
-
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;document.querySelector('#installBtn').hidden=false;});
+document.querySelector('#installBtn').onclick=async()=>{if(!deferredInstallPrompt)return;deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;document.querySelector('#installBtn').hidden=true;};
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 render(currentRoute());
 })();

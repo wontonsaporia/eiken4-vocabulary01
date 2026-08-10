@@ -25,3 +25,22 @@ GitHub Pages だけで動く、英検4級語彙学習Webアプリです。
 ## 保存について
 学習進捗はサーバーには送信せず、そのブラウザの `localStorage` に保存します。
 端末間の自動同期はありません。進捗ページからJSONを書き出して移行できます。
+
+## GitHub Pagesへの公開
+このフォルダの中身をリポジトリ直下へ置きます。
+
+Settings → Pages → Deploy from a branch → main → /(root)
+
+相対パスだけで構成しているため、`username.github.io/repository-name/` 型のProject Pagesで動作します。
+
+## Excelを更新したとき
+1. `downloads/eiken4_vocabulary.xlsx` を最新版に置き換える
+2. リポジトリのルートで以下を実行
+
+```bash
+python tools/build_data.py downloads/eiken4_vocabulary.xlsx
+```
+
+3. `data/data.js` とExcelをcommit/push
+
+Webアプリ側を手で編集せず、Excelをマスターとして運用できます。

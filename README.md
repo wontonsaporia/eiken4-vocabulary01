@@ -1,46 +1,84 @@
-# eiken4-vocabulary01
-GitHub Pages だけで動く、英検4級語彙学習Webアプリです。
+# EIKEN 4 Vocabulary Lab — MVP 2
 
-## 収録データ
-- 単語: 889語
-- 熟語・表現: 103項目
-- 合計: 992項目
+GitHub Pagesだけで動作する語彙学習Webアプリです。教材編集はExcel、Web側のJSON/JSデータは自動生成、学習ロジックはJavaScriptに分離しています。
 
-## 主な機能
-- 今日の10問（弱点・復習期限・未学習を自動選択）
-- 固定10語セット
-- ランダム10問
-- 英語→日本語 4択
-- 名詞の可算性 C / U / C/U 等の4択
-- 熟語・表現テスト
-- 学習カード
-- 間違いだけ再テスト
-- localStorage による進捗・弱点・履歴保存
-- 綴り想起・意味認識・可算性を別スキルとして記録（可算性正解だけで語彙定着扱いにしない）
-- 進捗のJSON書き出し／読み込み
-- 単語検索・フィルタ
+## 現在の機能
+
+- 10 / 20 / 30 / 50 / CUSTOM（最大500）/ ENDLESS
+- FASTモード：採点後に自動で次の問題へ
+- セッション途中終了時も結果を保存
+- 優先度 / 分類 / 品詞による出題範囲指定
+- SMART / RANDOM / 固定SET / 弱点 / 復習期限
+- 日本語→英語入力、英語→日本語4択、可算性4択
+- 熟語・表現
+- accepted_answers（別綴り・複数許容解答）
+- 近似スペル判定（誤答は誤答のまま、近い場合だけフィードバック）
+- localStorageによる履歴・定着度保存
 - PWA / オフライン対応
-- Excel版ダウンロード
 
-## 保存について
-学習進捗はサーバーには送信せず、そのブラウザの `localStorage` に保存します。
-端末間の自動同期はありません。進捗ページからJSONを書き出して移行できます。
+## データ設計
 
-## GitHub Pagesへの公開
-このフォルダの中身をリポジトリ直下へ置きます。
-
-Settings → Pages → Deploy from a branch → main → /(root)
-
-相対パスだけで構成しているため、`username.github.io/repository-name/` 型のProject Pagesで動作します。
-
-## Excelを更新したとき
-1. `downloads/eiken4_vocabulary.xlsx` を最新版に置き換える
-2. リポジトリのルートで以下を実行
-
-```bash
-python tools/build_data.py downloads/eiken4_vocabulary.xlsx
+```text
+source/eiken4_learning_master.xlsx  ← 人間が編集する原本
+            ↓
+tools/build_data.py
+            ↓
+data/data.js                       ← Webアプリ用生成データ
+            ↓
+app.js                             ← 学習ロジック
 ```
 
-3. `data/data.js` とExcelをcommit/push
+`data/data.js` は原則として直接編集しません。
 
-Webアプリ側を手で編集せず、Excelをマスターとして運用できます。
+### Vocabulary_Master
+
+主要フィールド：
+
+- `ID` — 固定ID。**既存IDを変更・再採番しないでください**。学習履歴との紐付けに使います。
+- `英単語`
+- `日本語`
+- `レベル`
+- `優先度`
+- `主品詞`
+- `分類`
+- `名詞区分`
+- `IPA_US` / `IPA_UK`
+- `許容解答` — `;` 区切り。例: `favorite; favourite`
+- `例文`
+- `コロケーション`
+- `語法参照`
+
+### Phrase_Master
+
+熟語・表現用の固定ID、レベル、許容解答、例文等を管理します。
+
+### Question_Master
+
+将来の英検形式問題用です。`status` が `published` の行だけWebデータに出力されます。現在入っている行は `draft` のサンプルなので出題されません。
+
+## Excelを更新したら
+
+リポジトリのルートで：
+
+```bash
+python tools/build_data.py
+```
+
+その後、次をcommit/pushします。
+
+```text
+source/eiken4_learning_master.xlsx
+data/data.js
+```
+
+## GitHub Pages
+
+リポジトリ直下にこのフォルダの内容を置きます。
+
+`Settings → Pages → Deploy from a branch → main → /(root)`
+
+Project Pages (`username.github.io/repository-name/`) に対応するため、相対パスで構成しています。
+
+## 学習履歴
+
+履歴はブラウザの `localStorage` に保存します。v1と同じ保存キーを維持しているため、既存端末の進捗を引き継げます。進捗画面からJSONで書き出し・読み込みもできます。

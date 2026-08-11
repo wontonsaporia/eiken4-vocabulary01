@@ -1,21 +1,19 @@
-const CACHE='eiken4-vocab-lab-v2-1';
-const CORE=[
-  './','./index.html','./styles.css','./app.js','./data/data.js',
-  './manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'
-];
-self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()));
+// Self-destructing service worker for retiring the former app.
+self.addEventListener('install', event => {
+  self.skipWaiting();
 });
-self.addEventListener('activate',e=>{
-  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(key => caches.delete(key)));
+    await self.registration.unregister();
+    await self.clients.claim();
+    const clients = await self.clients.matchAll({type:'window'});
+    for (const client of clients) {
+      client.navigate(client.url);
+    }
+  })());
 });
-self.addEventListener('fetch',e=>{
-  if(e.request.method!=='GET') return;
-  e.respondWith(
-    caches.match(e.request).then(cached=>cached || fetch(e.request).then(res=>{
-      const clone=res.clone();
-      caches.open(CACHE).then(c=>c.put(e.request,clone));
-      return res;
-    }).catch(()=>caches.match('./index.html')))
-  );
+self.addEventListener('fetch', event => {
+  event.respondWith(fetch(event.request));
 });

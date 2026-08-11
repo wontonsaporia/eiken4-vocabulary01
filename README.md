@@ -1,98 +1,27 @@
-# EIKEN 4 Vocabulary Lab — MVP 2
+# Student download-only emergency public site
 
-GitHub Pagesだけで動作する語彙学習Webアプリです。教材編集はExcel、Web側のJSON/JSデータは自動生成、学習ロジックはJavaScriptに分離しています。
+公開側には原則として次だけを残します。
 
-## 現在の機能
+- index.html
+- sw.js（旧PWAキャッシュ削除用。移行後は削除可）
+- .nojekyll
+- downloads/eiken4_vocabulary.xlsx
 
-- 10 / 20 / 30 / 50 / CUSTOM（最大500）/ ENDLESS
-- FASTモード：採点後に自動で次の問題へ
-- セッション途中終了時も結果を保存
-- 優先度 / 分類 / 品詞による出題範囲指定
-- SMART / RANDOM / 固定SET / 弱点 / 復習期限
-- 日本語→英語入力、英語→日本語4択、可算性4択
-- 熟語・表現
-- accepted_answers（別綴り・複数許容解答）
-- 近似スペル判定（誤答は誤答のまま、近い場合だけフィードバック）
-- localStorageによる履歴・定着度保存
-- PWA / オフライン対応
+旧講師アプリの以下のファイルは公開リポジトリから削除してください。
 
-## データ設計
+- app.js
+- styles.css
+- manifest.webmanifest
+- data/
+- source/
+- tools/
+- icons/
+- ROADMAP.md
+- 講師用マスターや問題DB
 
-```text
-source/eiken4_learning_master.xlsx  ← 人間が編集する原本
-            ↓
-tools/build_data.py
-            ↓
-data/data.js                       ← Webアプリ用生成データ
-            ↓
-app.js                             ← 学習ロジック
-```
+## 即時切替
 
-`data/data.js` は原則として直接編集しません。
+このフォルダの中身で公開リポジトリのルートを置き換え、commit / pushしてください。
 
-### Vocabulary_Master
-
-主要フィールド：
-
-- `ID` — 固定ID。**既存IDを変更・再採番しないでください**。学習履歴との紐付けに使います。
-- `英単語`
-- `日本語`
-- `レベル`
-- `優先度`
-- `主品詞`
-- `分類`
-- `名詞区分`
-- `IPA_US` / `IPA_UK`
-- `許容解答` — `;` 区切り。例: `favorite; favourite`
-- `例文`
-- `コロケーション`
-- `語法参照`
-
-### Phrase_Master
-
-熟語・表現用の固定ID、レベル、許容解答、例文等を管理します。
-
-### Question_Master
-
-将来の英検形式問題用です。`status` が `published` の行だけWebデータに出力されます。現在入っている行は `draft` のサンプルなので出題されません。
-
-## Excelを更新したら
-
-リポジトリのルートで：
-
-```bash
-python tools/build_data.py
-```
-
-その後、次をcommit/pushします。
-
-```text
-source/eiken4_learning_master.xlsx
-data/data.js
-```
-
-## GitHub Pages
-
-リポジトリ直下にこのフォルダの内容を置きます。
-
-`Settings → Pages → Deploy from a branch → main → /(root)`
-
-Project Pages (`username.github.io/repository-name/`) に対応するため、相対パスで構成しています。
-
-## 学習履歴
-
-履歴はブラウザの `localStorage` に保存します。v1と同じ保存キーを維持しているため、既存端末の進捗を引き継げます。進捗画面からJSONで書き出し・読み込みもできます。
-
-
-## MVP 2.1 実機UX修正
-- `[hidden]` をCSSで強制して、未採点時の「次の問題」などが表示される問題を修正
-- 「答えを確認」→「採点する」へ変更
-- 「わからない／答えを見る」は不正解として記録して正答を表示
-- 学習カードはタップで意味表示、表示後は左右スワイプ（左＝まだ、右＝覚えた）
-- 出題方向を「日本語→英語 / 英語→日本語」で切替可能
-- 「英語→日本語」を「意味選択」に改称
-- 単語一覧フィルタを Level / 品詞 / 優先度中心へ変更
-- 可算性選択肢を Countable / Uncountable 等の完全表記へ変更
-- OFFLINE表示を削除（オフライン動作自体は維持）
-- LIGHT / DARK 切替を追加
-- 進捗を総合グラフ・最近の正答率・品詞→カテゴリ階層で表示
+旧Service Workerが残る端末では最初の1回だけ古い画面が見える可能性があります。
+その場合は再読み込みしてください。新しい sw.js と index.html が旧キャッシュを削除します。

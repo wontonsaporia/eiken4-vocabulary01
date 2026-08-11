@@ -32,6 +32,8 @@ function defaultState(){
       sessionLength:'50',
       customCount:50,
       fastMode:true,
+      direction:'ja-en',
+      theme:'system',
       priority:'A',
       category:'',
       mainPos:''
@@ -54,6 +56,22 @@ function loadState(){
   }catch(e){ return d; }
 }
 function saveState(){ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
+function effectiveDark(){
+  return state.settings.theme==='dark'||(state.settings.theme==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function applyTheme(){
+  const root=document.documentElement;
+  if(state.settings.theme==='system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme',state.settings.theme);
+  const btn=document.querySelector('#themeBtn');
+  if(btn){
+    btn.textContent=effectiveDark()?'LIGHT':'DARK';
+    btn.setAttribute('aria-label',effectiveDark()?'ライトモードに切り替える':'ダークモードに切り替える');
+  }
+}
+function toggleTheme(){state.settings.theme=effectiveDark()?'light':'dark';saveState();applyTheme();}
+function recallMode(){return state.settings.direction==='en-ja'?'enja':'typing';}
+function recallLabel(){return state.settings.direction==='en-ja'?'意味選択':'綴り入力';}
 function esc(v){
   return String(v ?? '').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 }
@@ -230,6 +248,13 @@ function sessionSettingsPanel(){
       <button class="length-chip ${v==='custom'?'active':''}" data-length="custom">CUSTOM</button>
       <button class="length-chip ${v==='endless'?'active':''}" data-length="endless">ENDLESS</button>
     </div>
+    <div class="direction-row">
+      <span class="direction-label">出題方向</span>
+      <div class="segmented direction-segment">
+        <button data-direction="ja-en" class="${state.settings.direction==='ja-en'?'active':''}">日本語 → 英語</button>
+        <button data-direction="en-ja" class="${state.settings.direction==='en-ja'?'active':''}">英語 → 日本語</button>
+      </div>
+    </div>
     <div class="session-controls">
       <label class="field custom-count ${v==='custom'?'':'is-hidden'}">CUSTOM <input id="customCount" type="number" min="1" max="500" value="${Number(state.settings.customCount)||50}"></label>
       <label class="field">優先度<select id="sessionPriority"><option value="">ALL</option><option value="A" ${state.settings.priority==='A'?'selected':''}>A</option><option value="B" ${state.settings.priority==='B'?'selected':''}>B</option></select></label>
@@ -241,6 +266,7 @@ function sessionSettingsPanel(){
 }
 function bindSessionSettings(onChange=()=>renderTests()){
   document.querySelectorAll('[data-length]').forEach(btn=>btn.onclick=()=>{state.settings.sessionLength=btn.dataset.length;saveState();onChange();});
+  document.querySelectorAll('[data-direction]').forEach(btn=>btn.onclick=()=>{state.settings.direction=btn.dataset.direction;saveState();onChange();});
   const custom=document.querySelector('#customCount');if(custom)custom.onchange=()=>{state.settings.customCount=Math.max(1,Math.min(500,Number(custom.value)||50));saveState();onChange();};
   const pri=document.querySelector('#sessionPriority');if(pri)pri.onchange=()=>{state.settings.priority=pri.value;state.fixedSet=0;saveState();onChange();};
   const cat=document.querySelector('#sessionCategory');if(cat)cat.onchange=()=>{state.settings.category=cat.value;state.fixedSet=0;saveState();onChange();};
@@ -256,7 +282,7 @@ function renderHome(){
     ${heroHeader('EIKEN GRADE 4','Vocabulary Lab','語彙を短いセットでも、長い流れでも学習できます。')}
     <section class="hero-grid">
       <div class="hero-card primary">
-        <div><div class="kicker">TODAY / SMART ${esc(display)}</div><div class="hero-number">${display==='ENDLESS'?'∞':esc(display)}</div><div class="hero-title">今日のセッション</div><div class="hero-sub muted">弱点・復習期限・未学習を混ぜて出題します。</div></div>
+        <div><div class="kicker">TODAY / ${esc(recallLabel().toUpperCase())} ${esc(display)}</div><div class="hero-number">${display==='ENDLESS'?'∞':esc(display)}</div><div class="hero-title">今日のセッション</div><div class="hero-sub muted">弱点・復習期限・未学習を混ぜて出題します。</div></div>
         <div class="btn-row"><button class="btn inverse" id="startDaily">はじめる →</button><button class="btn ghost" style="color:#fff;border-color:#444" data-route="tests">設定</button></div>
       </div>
       <div class="hero-card">
@@ -270,7 +296,7 @@ function renderHome(){
       ${modeCard('STUDY','学習カード',`${sessionNoun('語')}を連続で確認します。`,'study')}
       ${modeCard('FIXED','固定セット','SET番号を起点に、設定した語数だけ続けます。','fixed')}
       ${modeCard('REVIEW','弱点復習','誤答・低定着の語を優先して再出題します。','weak')}
-      ${modeCard('E → J','英語→日本語','意味を4択で確認します。','enja')}
+      ${modeCard('MEANING','意味選択','英単語を見て、日本語の意味を4択で選びます。','enja')}
       ${modeCard('C / U','名詞の可算性','C / U / C-U などを別スキルとして確認します。','count')}
       ${modeCard('PHRASE','熟語・表現','熟語・表現を連続で確認します。','phrases')}
     </section>
@@ -290,9 +316,9 @@ function renderTests(){
     ${sessionSettingsPanel()}
     <div class="section-head"><div><h2>単語</h2><p>${filteredWords().length} words in range</p></div></div>
     <section class="mode-grid">
-      ${modeCard('SMART',`今日の${sessionNoun()}`,'弱点・復習期限・未学習を混ぜます。','daily')}
-      ${modeCard('RANDOM',`ランダム${sessionNoun()}`,'指定範囲から重複なしで出題します。','random')}
-      ${modeCard('E → J','英語→日本語','意味を4択で答えます。','enja')}
+      ${modeCard('SMART',`今日の${sessionNoun()}`,'選択中の出題方向で、弱点・復習期限・未学習を混ぜます。','daily')}
+      ${modeCard('RANDOM',`ランダム${sessionNoun()}`,'選択中の出題方向で、指定範囲から出題します。','random')}
+      ${modeCard('MEANING','意味選択','英単語を見て、日本語の意味を4択で選びます。','enja')}
       ${modeCard('C / U','可算性','名詞区分を4択で答えます。','count')}
       ${modeCard('STUDY','学習カード','テスト前に同じ設定語数を確認します。','study')}
     </section>
@@ -317,7 +343,7 @@ function setupFixedControls(){
   setEl.onchange=()=>{state.fixedSet=Number(setEl.value);saveState();preview();};
   document.querySelector('#startFixed').onclick=()=>{
     const res=fixedRangeItems(Number(setEl.value),n);
-    startQuiz('typing',res.items,{title:`SET ${String(res.index+1).padStart(2,'0')} →`,source:'fixed',setIndex:res.index,itemCount:res.items.length});
+    startQuiz(recallMode(),res.items,{title:`SET ${String(res.index+1).padStart(2,'0')} →`,source:'fixed',setIndex:res.index,itemCount:res.items.length});
   };
   document.querySelector('#studyFixed').onclick=()=>{const res=fixedRangeItems(Number(setEl.value),n);startStudy(res.items,{title:`SET ${String(res.index+1).padStart(2,'0')} →`});};
   preview();
@@ -346,28 +372,63 @@ function renderReview(){
 
 function renderList(){
   setNav('list');listLimit=120;
-  main.innerHTML=`${heroHeader('DATABASE','単語一覧','検索・品詞・優先度・名詞区分から絞り込めます。')}<div class="list-toolbar"><div class="filters"><input class="input" id="searchInput" type="search" placeholder="英単語・日本語・分類で検索"><select class="select" id="kindFilter"><option value="word">単語</option><option value="phrase">熟語・表現</option><option value="">すべて</option></select><select class="select" id="priorityFilter"><option value="">優先度すべて</option><option value="A">A</option><option value="B">B</option></select><select class="select" id="countFilter"><option value="">名詞区分すべて</option></select></div></div><div id="listCount" class="kicker"></div><section class="word-list" id="wordList"></section><div class="btn-row"><button class="btn" id="loadMore">さらに表示</button></div>`;
-  const countValues=[...new Set(WORDS.map(x=>x.countability).filter(Boolean))];
-  document.querySelector('#countFilter').innerHTML+=countValues.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
-  ['searchInput','kindFilter','priorityFilter','countFilter'].forEach(id=>document.querySelector('#'+id).addEventListener('input',()=>{listLimit=120;drawList();}));
+  const levels=[...new Set(ALL.map(x=>x.level).filter(Boolean))].sort();
+  const poses=[...new Set(WORDS.map(x=>x.main_pos).filter(Boolean))].sort();
+  main.innerHTML=`${heroHeader('DATABASE','単語一覧','検索に加えて、レベル・品詞・優先度から絞り込めます。')}<div class="list-toolbar"><div class="filters list-filters"><input class="input" id="searchInput" type="search" placeholder="英単語・日本語・分類で検索"><select class="select" id="kindFilter"><option value="word">単語</option><option value="phrase">熟語・表現</option><option value="">すべて</option></select><select class="select" id="levelFilter"><option value="">レベルすべて</option>${levels.map(x=>`<option value="${esc(x)}">英検${esc(x)}級</option>`).join('')}</select><select class="select" id="posFilter"><option value="">品詞すべて</option>${poses.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select><select class="select" id="priorityFilter"><option value="">優先度すべて</option><option value="A">A</option><option value="B">B</option></select></div></div><div id="listCount" class="kicker"></div><section class="word-list" id="wordList"></section><div class="btn-row"><button class="btn" id="loadMore">さらに表示</button></div>`;
+  ['searchInput','kindFilter','levelFilter','posFilter','priorityFilter'].forEach(id=>document.querySelector('#'+id).addEventListener('input',()=>{listLimit=120;drawList();}));
   document.querySelector('#loadMore').onclick=()=>{listLimit+=120;drawList();};drawList();
 }
 function drawList(){
-  const q=document.querySelector('#searchInput').value.trim().toLowerCase();const kind=document.querySelector('#kindFilter').value;const pri=document.querySelector('#priorityFilter').value;const count=document.querySelector('#countFilter').value;
-  const rows=ALL.filter(x=>{const hay=`${x.word} ${x.meaning} ${x.category||''} ${x.main_pos||''} ${x.noun_note||''} ${x.ipa_us||''}`.toLowerCase();return(!q||hay.includes(q))&&(!kind||x.kind===kind)&&(!pri||x.priority===pri)&&(!count||x.countability===count);});
+  const q=document.querySelector('#searchInput').value.trim().toLowerCase();
+  const kind=document.querySelector('#kindFilter').value;
+  const level=document.querySelector('#levelFilter').value;
+  const pos=document.querySelector('#posFilter').value;
+  const pri=document.querySelector('#priorityFilter').value;
+  const rows=ALL.filter(x=>{const hay=`${x.word} ${x.meaning} ${x.category||''} ${x.main_pos||''} ${x.noun_note||''} ${x.ipa_us||''}`.toLowerCase();return(!q||hay.includes(q))&&(!kind||x.kind===kind)&&(!level||String(x.level)===level)&&(!pos||x.main_pos===pos)&&(!pri||x.priority===pri);});
   document.querySelector('#listCount').textContent=`${rows.length} ITEMS`;document.querySelector('#wordList').innerHTML=rows.slice(0,listLimit).map(fullRow).join('');document.querySelector('#loadMore').hidden=listLimit>=rows.length;
 }
 function fullRow(x){
   return `<article class="word-row"><div><div class="word-en">${esc(x.word)}</div>${x.ipa_us?`<div class="ipa">${esc(x.ipa_us)}</div>`:''}<div class="badges">${x.level?`<span class="badge">LEVEL ${esc(x.level)}</span>`:''}${x.priority?`<span class="badge">優先度 ${esc(x.priority)}</span>`:''}${x.main_pos?`<span class="badge">${esc(x.main_pos)}</span>`:''}${x.countability?`<span class="badge">${esc(x.countability)}</span>`:''}${isMastered(x)?`<span class="badge">定着</span>`:isWeak(x)?`<span class="badge">弱点</span>`:''}</div></div><div><div class="word-ja">${esc(x.meaning)}</div>${x.example?`<div class="word-note">${esc(x.example)}</div>`:''}${x.noun_note?`<div class="word-note">${esc(x.noun_note)}</div>`:''}${x.collocation?`<div class="word-note">Collocation: ${esc(x.collocation)}</div>`:''}</div><div>${x.reference?`<a class="source-link" href="${esc(x.reference)}" target="_blank" rel="noopener">参照↗</a>`:''}</div></article>`;
 }
 
+function masteryData(items){
+  const total=items.length||1;
+  const mastered=items.filter(isMastered).length;
+  const weak=items.filter(isWeak).length;
+  const seen=items.filter(x=>{const s=state.stats[x.key];return s&&(s.attempts||s.exposures);}).length;
+  return {total:items.length,mastered,weak,seen,pct:Math.round(mastered/total*100)};
+}
+function skillAccuracy(skill){
+  let correct=0,attempts=0;
+  Object.values(state.stats).forEach(s=>{const k=s.skills?.[skill];if(k){correct+=k.correct||0;attempts+=k.attempts||0;}});
+  return {correct,attempts,pct:attempts?Math.round(correct/attempts*100):0};
+}
+function posProgress(){
+  return [...new Set(WORDS.map(w=>w.main_pos).filter(Boolean))].map(pos=>{
+    const raw=WORDS.filter(w=>w.main_pos===pos);
+    const items=raw.map(w=>({...w,kind:'word',key:'w:'+w.id}));
+    const base=masteryData(items);
+    const categories=[...new Set(raw.map(w=>w.category).filter(Boolean))].map(cat=>{
+      const ci=raw.filter(w=>w.category===cat).map(w=>({...w,kind:'word',key:'w:'+w.id}));
+      return {name:cat,...masteryData(ci)};
+    }).sort((a,b)=>b.total-a.total);
+    return {pos,...base,categories};
+  }).sort((a,b)=>b.total-a.total);
+}
 function renderProgress(){
   setNav('progress');const p=progressSummary();const percent=p.total?Math.round(p.mastered/p.total*100):0;
-  const cats=[...new Set(WORDS.map(x=>x.category).filter(Boolean))].map(cat=>{const items=WORDS.filter(w=>w.category===cat).map(w=>({...w,kind:'word',key:'w:'+w.id}));const mastered=items.filter(isMastered).length;return{cat,total:items.length,mastered,pct:Math.round(mastered/items.length*100)};}).sort((a,b)=>b.total-a.total);
-  const recent=[...state.history].reverse().slice(0,14);
-  main.innerHTML=`${heroHeader('PROGRESS','学習進捗','この端末に保存されている学習履歴です。')}<section class="hero-grid"><div class="hero-card primary"><div><div class="kicker">MASTERY</div><div class="hero-number">${percent}<span style="font-size:.35em">%</span></div><div class="hero-title">${p.mastered}項目が定着</div></div></div><div class="hero-card"><div><div class="kicker">STREAK</div><div class="hero-number">${state.streak.count}</div><div class="hero-title">連続学習日</div></div></div></section><section class="grid-4"><div class="stat-card"><div class="stat-value">${p.unseen}</div><div class="stat-label">未学習</div></div><div class="stat-card"><div class="stat-value">${p.learning}</div><div class="stat-label">学習中</div></div><div class="stat-card"><div class="stat-value">${p.weak}</div><div class="stat-label">弱点</div></div><div class="stat-card"><div class="stat-value">${state.history.length}</div><div class="stat-label">セッション</div></div></section>
-    <div class="section-head"><div><h2>カテゴリ別</h2><p>定着率</p></div></div><section class="panel category-list">${cats.map(c=>`<div class="category-row"><div class="category-name">${esc(c.cat)}</div><div class="category-bar"><span style="width:${c.pct}%"></span></div><div>${c.pct}%</div></div>`).join('')}</section>
-    <div class="section-head"><div><h2>最近のセッション</h2><p>${recent.length} records</p></div></div><section class="panel history-list">${recent.length?recent.map(h=>`<div class="history-row"><div><div class="history-title">${esc(h.title)}${h.partial?' · 途中終了':''}</div><div class="history-meta">${esc(h.day)} · ${esc(h.mode)} · ${h.total}問</div></div><div class="history-score">${h.score}/${h.total}</div></div>`).join(''):`<div class="empty">まだ履歴がありません。</div>`}</section>
+  const posData=posProgress();const meaning=skillAccuracy('enja');const count=skillAccuracy('count');const recent=[...state.history].slice(-12);
+  main.innerHTML=`${heroHeader('PROGRESS','学習進捗','総合状態 → 品詞 → 詳細分類の順で確認できます。')}
+    <section class="progress-overview panel">
+      <div class="donut-wrap"><div class="donut" style="--pct:${percent}"><div><strong>${percent}%</strong><span>想起定着</span></div></div></div>
+      <div class="progress-legend"><div><span class="legend-dot mastered"></span><b>${p.mastered}</b><small>定着</small></div><div><span class="legend-dot learning"></span><b>${p.learning}</b><small>学習中</small></div><div><span class="legend-dot unseen"></span><b>${p.unseen}</b><small>未学習</small></div></div>
+    </section>
+    <section class="grid-4"><div class="stat-card"><div class="stat-value">${percent}%</div><div class="stat-label">綴り想起</div></div><div class="stat-card"><div class="stat-value">${meaning.pct}%</div><div class="stat-label">意味選択 正答率</div></div><div class="stat-card"><div class="stat-value">${count.pct}%</div><div class="stat-label">可算性 正答率</div></div><div class="stat-card"><div class="stat-value">${state.streak.count}</div><div class="stat-label">連続学習日</div></div></section>
+    <div class="section-head"><div><h2>最近のセッション</h2><p>正答率</p></div></div>
+    <section class="panel"><div class="score-chart">${recent.length?recent.map((h,i)=>{const pct=h.total?Math.round(h.score/h.total*100):0;return `<div class="score-column" title="${esc(h.title)} ${pct}%"><div class="score-value">${pct}</div><div class="score-bar"><span style="height:${pct}%"></span></div><small>${i+1}</small></div>`;}).join(''):`<div class="empty">まだセッション履歴がありません。</div>`}</div></section>
+    <div class="section-head"><div><h2>品詞別</h2><p>開くと詳細分類を確認できます</p></div></div>
+    <section class="pos-progress">${posData.map(g=>`<details class="pos-group"><summary><div class="pos-title"><b>${esc(g.pos)}</b><small>${g.mastered}/${g.total} 定着</small></div><div class="pos-bar"><span style="width:${g.pct}%"></span></div><strong>${g.pct}%</strong></summary><div class="pos-subgroups">${g.categories.map(c=>`<div class="subgroup-row"><span>${esc(c.name)}</span><div class="category-bar"><span style="width:${c.pct}%"></span></div><small>${c.mastered}/${c.total}</small></div>`).join('')}</div></details>`).join('')}</section>
+    <div class="section-head"><div><h2>履歴</h2><p>${state.history.length} sessions</p></div></div><section class="panel history-list">${state.history.length?[...state.history].reverse().slice(0,14).map(h=>`<div class="history-row"><div><div class="history-title">${esc(h.title)}${h.partial?' · 途中終了':''}</div><div class="history-meta">${esc(h.day)} · ${esc(h.mode)} · ${h.total}問</div></div><div class="history-score">${h.score}/${h.total}</div></div>`).join(''):`<div class="empty">まだ履歴がありません。</div>`}</section>
     <div class="section-head"><div><h2>データ管理</h2><p>端末内保存</p></div></div><section class="panel"><div class="btn-row" style="margin-top:0"><button class="btn" id="exportProgress">履歴を書き出す</button><label class="btn">履歴を読み込む<input id="importProgress" type="file" accept="application/json" hidden></label><button class="btn" id="resetProgress">履歴をリセット</button></div><div class="callout">学習履歴はブラウザのlocalStorageに保存されます。別端末へは自動同期されません。</div></section>`;
   document.querySelector('#exportProgress').onclick=exportProgress;document.querySelector('#importProgress').onchange=importProgress;document.querySelector('#resetProgress').onclick=resetProgress;
 }
@@ -378,8 +439,12 @@ function startStudy(items,meta={}){
 }
 function renderStudy(){
   setNav('');const q=quiz,item=q.items[q.index];
-  main.innerHTML=`<div class="quiz-shell"><div class="quiz-top"><div><div class="quiz-set">STUDY · ${esc(q.meta.title||'SESSION')}</div><div class="quiz-count">${q.index+1} / ${q.items.length}</div></div><button class="btn" id="quitStudy">終了</button></div><div class="progress-track"><span style="width:${(q.index/q.items.length)*100}%"></span></div><section class="quiz-card study-card" id="studyCard"><div class="question-type">${q.revealed?'ANSWER':'TAP TO REVEAL'}</div><div class="study-word">${esc(item.word)}</div>${item.ipa_us?`<div class="ipa large">${esc(item.ipa_us)}</div>`:''}${q.revealed?`<div class="study-meaning">${esc(item.meaning)}</div><div class="study-detail">${[item.main_pos,item.category,item.countability].filter(Boolean).map(esc).join(' · ')}${item.example?`<br>${esc(item.example)}`:''}</div>`:`<div class="study-hint">意味を思い出してからタップ</div>`}</section><div class="quiz-actions">${q.revealed?`<button class="btn" id="studyNo">まだ</button><button class="btn dark" id="studyYes">覚えた</button>`:`<button class="btn dark" id="revealStudy">答えを見る</button>`}</div></div>`;
-  const reveal=()=>{q.revealed=true;renderStudy();};document.querySelector('#studyCard').onclick=reveal;document.querySelector('#revealStudy')?.addEventListener('click',e=>{e.stopPropagation();reveal();});document.querySelector('#studyYes')?.addEventListener('click',()=>studyRate(item,true));document.querySelector('#studyNo')?.addEventListener('click',()=>studyRate(item,false));document.querySelector('#quitStudy').onclick=()=>setRoute('home');
+  main.innerHTML=`<div class="quiz-shell"><div class="quiz-top"><div><div class="quiz-set">STUDY · ${esc(q.meta.title||'SESSION')}</div><div class="quiz-count">${q.index+1} / ${q.items.length}</div></div><button class="btn" id="quitStudy">終了</button></div><div class="progress-track"><span style="width:${(q.index/q.items.length)*100}%"></span></div><section class="quiz-card study-card ${q.revealed?'revealed':''}" id="studyCard"><div class="question-type">${q.revealed?'MEANING':'TAP TO REVEAL'}</div><div class="study-word">${esc(item.word)}</div>${item.ipa_us?`<div class="ipa large">${esc(item.ipa_us)}</div>`:''}${q.revealed?`<div class="study-meaning">${esc(item.meaning)}</div><div class="study-detail">${[item.main_pos,item.category,item.countability].filter(Boolean).map(esc).join(' · ')}${item.example?`<br>${esc(item.example)}`:''}</div><div class="swipe-hint">← まだ　　スワイプ　　覚えた →</div>`:`<div class="study-hint">カードをタップして意味を確認</div>`}</section>${q.revealed?`<div class="study-rate-actions"><button class="btn" id="studyNo">← まだ</button><button class="btn dark" id="studyYes">覚えた →</button></div>`:''}</div>`;
+  const card=document.querySelector('#studyCard');let startX=0,startY=0,moved=false;
+  card.addEventListener('pointerdown',e=>{startX=e.clientX;startY=e.clientY;moved=false;card.setPointerCapture?.(e.pointerId);});
+  card.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-startX)>8||Math.abs(e.clientY-startY)>8)moved=true;});
+  card.addEventListener('pointerup',e=>{const dx=e.clientX-startX,dy=e.clientY-startY;if(q.revealed&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)){card.classList.add(dx>0?'swipe-right':'swipe-left');setTimeout(()=>studyRate(item,dx>0),120);return;}if(!q.revealed&&!moved){q.revealed=true;renderStudy();}});
+  document.querySelector('#studyYes')?.addEventListener('click',()=>studyRate(item,true));document.querySelector('#studyNo')?.addEventListener('click',()=>studyRate(item,false));document.querySelector('#quitStudy').onclick=()=>setRoute('home');
 }
 function studyRate(item,known){
   const s=statFor(item.key);s.exposures=(s.exposures||0)+1;s.selfKnown=!!known;if(!known)s.dueAt=Date.now();updateDailyStreak();saveState();quiz.index++;quiz.revealed=false;if(quiz.index>=quiz.items.length){toast('学習カードを完了しました');setRoute('tests');}else renderStudy();
@@ -395,11 +460,16 @@ function clearQuizTimer(){if(quiz?.autoTimer){clearTimeout(quiz.autoTimer);quiz.
 function renderQuiz(){
   clearQuizTimer();setNav('');const q=quiz,item=q.items[q.index];if(!item){finishQuiz(false);return;}
   const endless=q.endless;const total=endless?'∞':q.items.length;const progress=endless?0:(q.index/q.items.length)*100;const isTyping=q.mode==='typing';
-  const questionTitle=q.mode==='typing'?(item.kind==='phrase'?'日本語 → 英語表現':'日本語 → 英単語'):q.mode==='enja'?'英単語 → 日本語':'名詞区分';
-  main.innerHTML=`<div class="quiz-shell"><div class="quiz-top"><div><div class="quiz-set">${esc(q.meta.title||'SESSION')}${q.fastMode?' · FAST':''}</div><div class="quiz-count">${q.index+1} / ${total}</div></div><button class="btn" id="quitQuiz">終了して保存</button></div>${endless?`<div class="endless-line">ENDLESS · 終了ボタンまで継続</div>`:`<div class="progress-track"><span style="width:${progress}%"></span></div>`}<section class="quiz-card"><div class="question-type">${questionTitle}</div><div class="question-main">${esc(q.mode==='typing'?item.meaning:item.word)}</div><div class="question-meta">${q.mode==='typing'?[item.main_pos,item.category,item.countability].filter(Boolean).map(esc).join(' · '):q.mode==='count'?esc(item.meaning):''}</div>${isTyping?`<input class="answer-input" id="answerInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${item.kind==='phrase'?'英語表現を入力':'英単語を入力'}">`:`<div class="choice-grid" id="choiceGrid">${makeChoices(item,q.mode).map(c=>`<button class="choice" data-value="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>`}<div class="feedback" id="feedback"></div><div class="quiz-actions">${isTyping?`<button class="btn dark" id="checkAnswer">答えを確認</button>`:''}<button class="btn dark" id="nextQuestion" hidden>${endless?'次の問題':q.index===q.items.length-1?'結果を見る':'次の問題'}</button></div></section></div>`;
+  const questionTitle=q.mode==='typing'?(item.kind==='phrase'?'日本語 → 英語表現':'綴り入力｜日本語 → 英語'):q.mode==='enja'?'意味選択｜英語 → 日本語':'名詞区分';
+  main.innerHTML=`<div class="quiz-shell"><div class="quiz-top"><div><div class="quiz-set">${esc(q.meta.title||'SESSION')}${q.fastMode?' · FAST':''}</div><div class="quiz-count">${q.index+1} / ${total}</div></div><button class="btn" id="quitQuiz">終了して保存</button></div>${endless?`<div class="endless-line">ENDLESS · 終了ボタンまで継続</div>`:`<div class="progress-track"><span style="width:${progress}%"></span></div>`}<section class="quiz-card"><div class="question-type">${questionTitle}</div><div class="question-main">${esc(q.mode==='typing'?item.meaning:item.word)}</div><div class="question-meta">${q.mode==='typing'?[item.main_pos,item.category,item.countability].filter(Boolean).map(esc).join(' · '):q.mode==='count'?esc(item.meaning):''}</div>${isTyping?`<input class="answer-input" id="answerInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${item.kind==='phrase'?'英語表現を入力':'英単語を入力'}">`:`<div class="choice-grid" id="choiceGrid">${makeChoices(item,q.mode).map(c=>`<button class="choice" data-value="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>`}<div class="feedback" id="feedback"></div><div class="quiz-actions">${isTyping?`<button class="btn dark" id="checkAnswer" disabled>採点する</button>`:''}<button class="btn" id="showAnswer">わからない／答えを見る</button><button class="btn dark" id="nextQuestion" hidden>${endless?'次の問題':q.index===q.items.length-1?'結果を見る':'次の問題'}</button></div></section></div>`;
   document.querySelector('#quitQuiz').onclick=()=>{clearQuizTimer();if(q.answers.length)finishQuiz(true);else setRoute('home');};
-  if(isTyping){const input=document.querySelector('#answerInput');setTimeout(()=>input.focus(),30);document.querySelector('#checkAnswer').onclick=()=>gradeTyping(item);input.onkeydown=e=>{if(e.key==='Enter'){if(!q.locked)gradeTyping(item);else{clearQuizTimer();nextQuestion();}}};}
-  else document.querySelectorAll('.choice').forEach(btn=>btn.onclick=()=>gradeChoice(item,btn.dataset.value));
+  if(isTyping){
+    const input=document.querySelector('#answerInput'),check=document.querySelector('#checkAnswer');setTimeout(()=>input.focus(),30);
+    input.addEventListener('input',()=>{check.disabled=!input.value.trim();});
+    check.onclick=()=>gradeTyping(item);
+    input.onkeydown=e=>{if(e.key==='Enter'){if(!q.locked&&input.value.trim())gradeTyping(item);else if(q.locked){clearQuizTimer();nextQuestion();}}};
+  }else document.querySelectorAll('.choice').forEach(btn=>btn.onclick=()=>gradeChoice(item,btn.dataset.value));
+  document.querySelector('#showAnswer').onclick=()=>gradeUnknown(item);
   document.querySelector('#nextQuestion').onclick=()=>{clearQuizTimer();nextQuestion();};
 }
 function makeChoices(item,mode){
@@ -408,14 +478,20 @@ function makeChoices(item,mode){
   }
   const values=[...new Set(WORDS.map(x=>x.countability).filter(Boolean))];const distract=sample(values.filter(x=>x!==item.countability),3).map(x=>({value:x,label:countLabel(x)}));return shuffle([{value:item.countability,label:countLabel(item.countability)},...distract]);
 }
-function countLabel(v){const map={'C':'C — 可算名詞','U':'U — 不可算名詞','C/U':'C/U — 両用','PN':'PN — 固有名詞','PL':'PL — 複数形','PL-only':'PL-only — 複数専用','C（単複同形）':'C — 単複同形','時の表現':'時の表現','特殊':'特殊'};return map[v]||v;}
+function countLabel(v){const map={'C':'Countable (C) — 可算名詞','U':'Uncountable (U) — 不可算名詞','C/U':'Countable / Uncountable (C/U) — 両用','PN':'Proper noun (PN) — 固有名詞','PL':'Plural (PL) — 複数形','PL-only':'Plural only (PL-only) — 複数専用','C（単複同形）':'Countable, same singular/plural — 単複同形','時の表現':'Time expression — 時の表現','特殊':'Special — 特殊'};return map[v]||v;}
 function gradeTyping(item){
   const input=document.querySelector('#answerInput');const user=input.value;if(!user.trim())return;const answers=acceptedAnswers(item);const nu=normEnglish(user);const ok=answers.some(a=>normEnglish(a)===nu);grade(item,ok,user,answers.join(' / '),ok?'':typoMessage(user,item));
 }
 function gradeChoice(item,value){const correct=quiz.mode==='enja'?item.meaning:item.countability;const ok=value===correct;document.querySelectorAll('.choice').forEach(b=>b.disabled=true);grade(item,ok,value,quiz.mode==='count'?countLabel(correct):correct,'');}
+function gradeUnknown(item){
+  if(quiz.locked)return;
+  document.querySelectorAll('.choice').forEach(b=>b.disabled=true);
+  const correct=quiz.mode==='typing'?acceptedAnswers(item).join(' / '):quiz.mode==='enja'?item.meaning:countLabel(item.countability);
+  grade(item,false,'未回答',correct,'答えを確認しました');
+}
 function grade(item,ok,user,correct,note=''){
-  if(quiz.locked)return;quiz.locked=true;quiz.answers.push({item,ok,user,correct,note});recordAnswer(item,ok,quiz.mode);document.querySelector('#answerInput')?.setAttribute('disabled','');const check=document.querySelector('#checkAnswer');if(check)check.hidden=true;const fb=document.querySelector('#feedback');fb.className='feedback show '+(ok?'good':'bad');fb.innerHTML=ok?`○ 正解<strong>${esc(item.word)}</strong>`:`× 不正解<strong>${esc(correct)}</strong>${note?`<div class="typo-note">${esc(note)}</div>`:''}`;document.querySelector('#nextQuestion').hidden=false;
-  if(quiz.fastMode){const wait=ok?430:1050;quiz.autoTimer=setTimeout(()=>nextQuestion(),wait);}
+  if(quiz.locked)return;quiz.locked=true;quiz.answers.push({item,ok,user,correct,note});recordAnswer(item,ok,quiz.mode);document.querySelector('#answerInput')?.setAttribute('disabled','');const check=document.querySelector('#checkAnswer');if(check)check.hidden=true;const show=document.querySelector('#showAnswer');if(show)show.hidden=true;const fb=document.querySelector('#feedback');fb.className='feedback show '+(ok?'good':'bad');fb.innerHTML=ok?`○ 正解<strong>${esc(item.word)}</strong>`:`× 不正解<strong>${esc(correct)}</strong>${note?`<div class="typo-note">${esc(note)}</div>`:''}`;document.querySelector('#nextQuestion').hidden=false;
+  if(quiz.fastMode){const wait=ok?500:1250;quiz.autoTimer=setTimeout(()=>nextQuestion(),wait);}
 }
 function nextQuestion(){
   clearQuizTimer();quiz.index++;quiz.locked=false;
@@ -434,7 +510,7 @@ function renderResult(score,partial=false){
   setNav('');const q=quiz;const wrong=q.answers.filter(a=>!a.ok);const total=q.answers.length;
   main.innerHTML=`<div class="quiz-shell"><p class="eyebrow">${partial?'SESSION SAVED':'RESULT'}</p><div class="result-score">${score}<span style="font-size:.35em"> / ${total}</span></div><div class="result-label">${partial?`途中終了：${total}問の結果を保存しました。`:score===total?'全問正解。':`${wrong.length}項目を復習候補に登録しました。`}</div><div class="btn-row">${wrong.length?`<button class="btn red" id="retryWrong">間違いだけ再テスト</button>`:''}${q.meta.source==='fixed'&&!partial?`<button class="btn dark" id="nextFixed">続きから</button>`:''}${q.meta.source==='phrases'&&!partial?`<button class="btn dark" id="nextPhrase">続きから</button>`:''}<button class="btn" data-route="home">ホームへ</button></div><section class="result-list">${q.answers.map(a=>`<div class="result-row"><div class="result-mark ${a.ok?'ok':'ng'}">${a.ok?'○':'×'}</div><div><div class="result-word">${esc(a.item.word)}</div><div class="result-meaning">${esc(a.item.meaning)}${a.note?` · ${esc(a.note)}`:''}</div></div><div class="badge">${esc(a.user)}</div></div>`).join('')}</section></div>`;
   document.querySelector('#retryWrong')?.addEventListener('click',()=>startQuiz(q.mode,wrong.map(x=>x.item),{title:'間違い復習',source:'review'}));
-  document.querySelector('#nextFixed')?.addEventListener('click',()=>{const n=resolvedSessionLength();const next=fixedRangeItems(state.fixedSet,n);startQuiz('typing',next.items,{title:`SET ${String(next.index+1).padStart(2,'0')} →`,source:'fixed',setIndex:next.index,itemCount:next.items.length});});
+  document.querySelector('#nextFixed')?.addEventListener('click',()=>{const n=resolvedSessionLength();const next=fixedRangeItems(state.fixedSet,n);startQuiz(recallMode(),next.items,{title:`SET ${String(next.index+1).padStart(2,'0')} →`,source:'fixed',setIndex:next.index,itemCount:next.items.length});});
   document.querySelector('#nextPhrase')?.addEventListener('click',()=>{const n=resolvedSessionLength();const next=phraseRangeItems(state.phraseSet,n);startQuiz('typing',next.items,{title:`熟語 SET ${String(next.index+1).padStart(2,'0')} →`,source:'phrases',setIndex:next.index,itemCount:next.items.length});});
   bindCommon();
 }
@@ -446,16 +522,16 @@ function resetProgress(){if(!confirm('この端末の学習履歴をすべて削
 function startMode(mode){
   const n=resolvedSessionLength();const endless=n===Infinity;
   if(mode==='daily'){
-    const items=adaptiveItems(endless?Math.min(100,filteredWords().length):n);startQuiz('typing',items,{title:`SMART ${sessionLabel()}`,source:'daily'},{endless,sourceFactory:endless?endlessFactory('daily'):null});
+    const qm=recallMode();const items=adaptiveItems(endless?Math.min(100,filteredWords().length):n);startQuiz(qm,items,{title:`SMART ${sessionLabel()}`,source:'daily'},{endless,sourceFactory:endless?endlessFactory(qm==='enja'?'enja':'daily'):null});
   }
   if(mode==='random'){
-    const pool=filteredWords();const items=endless?shuffle(pool):sample(pool,n);startQuiz('typing',items,{title:`RANDOM ${sessionLabel()}`,source:'random'},{endless,sourceFactory:endless?endlessFactory('random'):null});
+    const qm=recallMode();const pool=filteredWords();const items=endless?shuffle(pool):sample(pool,n);startQuiz(qm,items,{title:`RANDOM ${sessionLabel()}`,source:'random'},{endless,sourceFactory:endless?endlessFactory(qm==='enja'?'enja':'random'):null});
   }
   if(mode==='weak'){
-    const items=reviewItems('weak',n);if(items.length)startQuiz('typing',items,{title:`WEAK ${sessionLabel()}`,source:'review'},{endless,sourceFactory:endless?endlessFactory('weak'):null});else toast('弱点データがまだありません');
+    const qm=recallMode();const items=reviewItems('weak',n);if(items.length)startQuiz(qm,items,{title:`WEAK ${sessionLabel()}`,source:'review'},{endless,sourceFactory:endless?endlessFactory(qm==='enja'?'enja':'weak'):null});else toast('弱点データがまだありません');
   }
   if(mode==='due'){
-    const items=reviewItems('due',n);if(items.length)startQuiz('typing',items,{title:`DUE ${sessionLabel()}`,source:'review'},{endless,sourceFactory:endless?endlessFactory('due'):null});else toast('今日の復習項目はありません');
+    const qm=recallMode();const items=reviewItems('due',n);if(items.length)startQuiz(qm,items,{title:`DUE ${sessionLabel()}`,source:'review'},{endless,sourceFactory:endless?endlessFactory(qm==='enja'?'enja':'due'):null});else toast('今日の復習項目はありません');
   }
   if(mode==='enja'){
     const pool=filteredWords();const items=endless?shuffle(pool):sample(pool,n);startQuiz('enja',items,{title:`E → J ${sessionLabel()}`,source:'random'},{endless,sourceFactory:endless?endlessFactory('enja'):null});
@@ -482,11 +558,11 @@ function bindCommon(){
   document.querySelectorAll('[data-mode]').forEach(el=>el.onclick=()=>startMode(el.dataset.mode));
 }
 window.addEventListener('hashchange',()=>render(currentRoute()));
-window.addEventListener('online',()=>document.querySelector('#offlineBadge').hidden=true);
-window.addEventListener('offline',()=>document.querySelector('#offlineBadge').hidden=false);
-document.querySelector('#offlineBadge').hidden=navigator.onLine;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;document.querySelector('#installBtn').hidden=false;});
 document.querySelector('#installBtn').onclick=async()=>{if(!deferredInstallPrompt)return;deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;document.querySelector('#installBtn').hidden=true;};
+document.querySelector('#themeBtn').onclick=toggleTheme;
+if(window.matchMedia)window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.settings.theme==='system')applyTheme();});
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+applyTheme();
 render(currentRoute());
 })();

@@ -43,3 +43,11 @@ The roadmap fixes destinations, not implementation order. Small MVPs may pull in
 - timed mock tests
 - skill reports
 - learning → practice → mock-test loop
+
+
+MVP 2.1｜実機UX修正
+- 採点導線・スキップ記録
+- 学習カードのスワイプ操作
+- 出題方向切替
+- Dark mode
+- 検索/進捗UI再整理

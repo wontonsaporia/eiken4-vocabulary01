@@ -1,0 +1,35 @@
+:root{--bg:#f6f6f2;--surface:#fff;--ink:#111;--muted:#74746c;--line:#dcdcd5;--accent:#e52621;--good:#157347;--bad:#b42318}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit}
+main{width:min(720px,calc(100% - 36px));margin:0 auto;padding:48px 0 72px}
+.eyebrow{font-size:11px;letter-spacing:.16em;color:var(--accent);font-weight:800;margin:0 0 9px}
+h1{font-size:clamp(40px,11vw,70px);line-height:.94;letter-spacing:-.055em;margin:0}
+.copy{color:var(--muted);line-height:1.75;margin:18px 0 0}
+.card{margin-top:28px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px}
+.row{display:flex;justify-content:space-between;align-items:end;gap:12px}
+.label{font-size:11px;letter-spacing:.11em;color:var(--muted);font-weight:700}
+.count{font-size:28px;font-weight:850}
+.track{height:7px;background:#e5e5df;border-radius:99px;overflow:hidden;margin:10px 0 22px}
+.track span{display:block;height:100%;background:var(--ink)}
+.prompt{font-size:clamp(28px,8vw,48px);font-weight:820;line-height:1.2;letter-spacing:-.035em;margin-top:16px}
+.meta{font-size:12px;color:var(--muted);margin-top:8px}
+.answer{width:100%;height:56px;border:1px solid var(--line);border-radius:12px;padding:0 15px;margin-top:22px;font-size:18px;background:#fff}
+.choices{display:grid;gap:9px;margin-top:22px}
+.choice,.btn{border:1px solid var(--line);border-radius:12px;background:#fff;min-height:50px;padding:11px 14px;font-weight:700;cursor:pointer}
+.choice{text-align:left}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.actions .btn{flex:1 1 160px}
+.feedback{display:none;margin-top:14px;border-radius:12px;padding:13px 14px;line-height:1.6}
+.feedback.show{display:block}
+.feedback.good{background:#edf7f1;color:var(--good)}
+.feedback.bad{background:#fff0ef;color:var(--bad)}
+.feedback strong{display:block;font-size:20px;margin-top:2px}
+.score{font-size:clamp(72px,18vw,118px);line-height:.9;letter-spacing:-.07em;font-weight:900}
+.result-row{padding:12px 0;border-bottom:1px solid var(--line)}
+.result-word{font-weight:800}
+.result-meaning{font-size:12px;color:var(--muted);margin-top:3px}
+[hidden]{display:none!important}

@@ -443,7 +443,7 @@ function renderStudy(){
   const card=document.querySelector('#studyCard');let startX=0,startY=0,moved=false;
   card.addEventListener('pointerdown',e=>{startX=e.clientX;startY=e.clientY;moved=false;card.setPointerCapture?.(e.pointerId);});
   card.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-startX)>8||Math.abs(e.clientY-startY)>8)moved=true;});
-  card.addEventListener('pointerup',e=>{const dx=e.clientX-startX,dy=e.clientY-startY;if(q.revealed&&Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)){card.classList.add(dx>0?'swipe-right':'swipe-left');setTimeout(()=>studyRate(item,dx>0),120);return;}if(!q.revealed&&!moved){q.revealed=true;renderStudy();}});
+  card.addEventListener('pointerup',e=>{const dx=e.clientX-startX,dy=e.clientY-startY;if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)){card.classList.add(dx>0?'swipe-right':'swipe-left');setTimeout(()=>studyRate(item,dx>0),120);return;}if(!q.revealed&&!moved){q.revealed=true;renderStudy();}});
   document.querySelector('#studyYes')?.addEventListener('click',()=>studyRate(item,true));document.querySelector('#studyNo')?.addEventListener('click',()=>studyRate(item,false));document.querySelector('#quitStudy').onclick=()=>setRoute('home');
 }
 function studyRate(item,known){

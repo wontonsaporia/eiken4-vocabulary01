@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#f4f4ef">
+<title>英検4級 動詞クイズ 25問</title>
+<style>
+:root{
+  --bg:#f4f4ef;
+  --surface:#fff;
+  --ink:#111;
+  --muted:#74746c;
+  --line:#d9d9d1;
+  --accent:#e52621;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP","Hiragino Sans",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit}
+.slide{
+  display:none;
+  width:100vw;
+  height:100vh;
+  padding:clamp(18px,2.7vw,46px);
+}
+.slide.active{
+  display:flex;
+  flex-direction:column;
+}
+.header{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:clamp(12px,1.5vw,24px);
+}
+.eyebrow{
+  margin:0 0 4px;
+  color:var(--accent);
+  font-size:clamp(10px,1vw,15px);
+  font-weight:900;
+  letter-spacing:.16em;
+}
+h1{
+  margin:0;
+  font-size:clamp(25px,3vw,48px);
+  line-height:1;
+  letter-spacing:-.045em;
+}
+.guide{
+  color:var(--muted);
+  font-size:clamp(10px,1.1vw,16px);
+  text-align:right;
+  line-height:1.5;
+}
+.grid{
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  grid-template-rows:repeat(5,1fr);
+  gap:clamp(7px,1vw,14px);
+  min-height:0;
+}
+.item{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  min-height:0;
+  padding:clamp(8px,1.1vw,18px);
+  border:1px solid var(--line);
+  border-radius:clamp(10px,1.2vw,18px);
+  background:var(--surface);
+  text-align:center;
+}
+.num{
+  position:absolute;
+  top:clamp(7px,.8vw,12px);
+  left:clamp(8px,.9vw,14px);
+  color:var(--muted);
+  font-size:clamp(9px,.85vw,13px);
+  font-weight:900;
+}
+.word{
+  font-size:clamp(23px,2.7vw,44px);
+  line-height:1.1;
+  font-weight:850;
+  letter-spacing:-.035em;
+}
+.sentence-list{
+  flex:1;
+  display:grid;
+  grid-template-rows:repeat(5,1fr);
+  gap:clamp(7px,1vw,14px);
+  min-height:0;
+}
+.sentence-item{
+  position:relative;
+  display:flex;
+  align-items:center;
+  min-height:0;
+  padding:clamp(12px,1.5vw,22px) clamp(18px,2vw,30px);
+  border:1px solid var(--line);
+  border-radius:clamp(10px,1.2vw,18px);
+  background:var(--surface);
+}
+.sentence-item .num{
+  top:10px;
+  left:13px;
+}
+.eng{
+  width:100%;
+  text-align:center;
+  font-size:clamp(23px,3vw,48px);
+  line-height:1.2;
+  font-weight:820;
+  letter-spacing:-.035em;
+}
+.target{
+  text-decoration:underline;
+  text-decoration-thickness:.08em;
+  text-underline-offset:.12em;
+}
+.controls{
+  position:fixed;
+  right:14px;
+  bottom:14px;
+  display:flex;
+  gap:7px;
+  z-index:20;
+  opacity:.22;
+  transition:opacity .2s;
+}
+.controls:hover,.controls:focus-within{opacity:1}
+.btn{
+  min-width:44px;
+  min-height:42px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:rgba(255,255,255,.94);
+  color:var(--ink);
+  font-weight:850;
+  cursor:pointer;
+}
+.page{
+  display:grid;
+  place-items:center;
+  padding:0 12px;
+  color:var(--muted);
+  font-size:12px;
+}
+@media(max-width:850px){
+  .grid{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(10,1fr)}
+  .word{font-size:clamp(18px,4vw,30px)}
+}
+</style>
+</head>
+<body>
+
+<section class="slide active">
+  <header class="header">
+    <div>
+      <p class="eyebrow">EIKEN GRADE 4 / VERB QUIZ</p>
+      <h1>Part 1 — Word Meaning</h1>
+    </div>
+    <div class="guide">英語の意味を日本語で書いてください。<br>1–20</div>
+  </header>
+
+  <div class="grid">
+    <div class="item"><span class="num">01</span><span class="word">give</span></div>
+    <div class="item"><span class="num">02</span><span class="word">make</span></div>
+    <div class="item"><span class="num">03</span><span class="word">need</span></div>
+    <div class="item"><span class="num">04</span><span class="word">put</span></div>
+    <div class="item"><span class="num">05</span><span class="word">wear</span></div>
+    <div class="item"><span class="num">06</span><span class="word">arrive</span></div>
+    <div class="item"><span class="num">07</span><span class="word">borrow</span></div>
+    <div class="item"><span class="num">08</span><span class="word">lend</span></div>
+    <div class="item"><span class="num">09</span><span class="word">bring</span></div>
+    <div class="item"><span class="num">10</span><span class="word">receive</span></div>
+    <div class="item"><span class="num">11</span><span class="word">hear</span></div>
+    <div class="item"><span class="num">12</span><span class="word">listen</span></div>
+    <div class="item"><span class="num">13</span><span class="word">see</span></div>
+    <div class="item"><span class="num">14</span><span class="word">look</span></div>
+    <div class="item"><span class="num">15</span><span class="word">watch</span></div>
+    <div class="item"><span class="num">16</span><span class="word">say</span></div>
+    <div class="item"><span class="num">17</span><span class="word">tell</span></div>
+    <div class="item"><span class="num">18</span><span class="word">speak</span></div>
+    <div class="item"><span class="num">19</span><span class="word">talk</span></div>
+    <div class="item"><span class="num">20</span><span class="word">remember</span></div>
+  </div>
+</section>
+
+<section class="slide">
+  <header class="header">
+    <div>
+      <p class="eyebrow">EIKEN GRADE 4 / VERB QUIZ</p>
+      <h1>Part 2 — In Context</h1>
+    </div>
+    <div class="guide">下線の動詞を含む文の意味を日本語で書いてください。<br>21–25</div>
+  </header>
+
+  <div class="sentence-list">
+    <div class="sentence-item"><span class="num">21</span><div class="eng">Can I <span class="target">borrow</span> your pen?</div></div>
+    <div class="sentence-item"><span class="num">22</span><div class="eng">Can you <span class="target">lend</span> me your pen?</div></div>
+    <div class="sentence-item"><span class="num">23</span><div class="eng">I can <span class="target">hear</span> music from the next room.</div></div>
+    <div class="sentence-item"><span class="num">24</span><div class="eng">Please <span class="target">listen</span> to this song.</div></div>
+    <div class="sentence-item"><span class="num">25</span><div class="eng">We <span class="target">watch</span> TV after dinner.</div></div>
+  </div>
+</section>
+
+<div class="controls">
+  <button class="btn" id="prev">←</button>
+  <div class="page"><span id="page">1</span> / 2</div>
+  <button class="btn" id="next">→</button>
+  <button class="btn" id="full">⛶</button>
+</div>
+
+<script>
+(() => {
+  const slides=[...document.querySelectorAll('.slide')];
+  let index=0;
+  const page=document.querySelector('#page');
+
+  function show(i){
+    index=Math.max(0,Math.min(slides.length-1,i));
+    slides.forEach((s,n)=>s.classList.toggle('active',n===index));
+    page.textContent=index+1;
+  }
+
+  document.querySelector('#prev').onclick=()=>show(index-1);
+  document.querySelector('#next').onclick=()=>show(index+1);
+  document.querySelector('#full').onclick=()=>{
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  };
+
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();show(index+1);}
+    if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();show(index-1);}
+  });
+
+  let startX=0;
+  document.addEventListener('touchstart',e=>{startX=e.changedTouches[0].clientX},{passive:true});
+  document.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-startX;
+    if(Math.abs(dx)>60)show(index+(dx<0?1:-1));
+  },{passive:true});
+})();
+</script>
+</body>
+</html>

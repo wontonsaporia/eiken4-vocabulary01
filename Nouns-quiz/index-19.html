@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#f4f4ef">
+<title>英検4級 名詞クイズ 50問</title>
+<style>
+:root{
+  --bg:#f4f4ef;
+  --surface:#fff;
+  --ink:#111;
+  --muted:#74746c;
+  --line:#d9d9d1;
+  --accent:#e52621;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP","Hiragino Sans",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit}
+.slide{
+  display:none;
+  width:100vw;
+  height:100vh;
+  padding:clamp(18px,2.5vw,44px);
+}
+.slide.active{
+  display:flex;
+  flex-direction:column;
+}
+.header{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:clamp(12px,1.4vw,22px);
+}
+.eyebrow{
+  margin:0 0 4px;
+  color:var(--accent);
+  font-size:clamp(10px,1vw,15px);
+  font-weight:900;
+  letter-spacing:.16em;
+}
+h1{
+  margin:0;
+  font-size:clamp(26px,3vw,48px);
+  line-height:1;
+  letter-spacing:-.045em;
+}
+.guide{
+  color:var(--muted);
+  font-size:clamp(10px,1.1vw,16px);
+  text-align:right;
+  line-height:1.5;
+}
+.grid20{
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  grid-template-rows:repeat(4,1fr);
+  gap:clamp(7px,.9vw,13px);
+  min-height:0;
+}
+.item{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  min-height:0;
+  border:1px solid var(--line);
+  border-radius:clamp(9px,1vw,16px);
+  background:var(--surface);
+  text-align:center;
+}
+.num{
+  position:absolute;
+  top:clamp(6px,.65vw,10px);
+  left:clamp(7px,.75vw,12px);
+  color:var(--muted);
+  font-size:clamp(8px,.75vw,12px);
+  font-weight:900;
+}
+.word{
+  font-size:clamp(19px,2.25vw,40px);
+  line-height:1.05;
+  font-weight:850;
+  letter-spacing:-.035em;
+}
+.sentence-list{
+  flex:1;
+  display:grid;
+  grid-template-rows:repeat(5,1fr);
+  gap:clamp(8px,1vw,14px);
+  min-height:0;
+}
+.sentence-item{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:0;
+  padding:clamp(14px,1.6vw,24px) clamp(18px,2vw,30px);
+  border:1px solid var(--line);
+  border-radius:clamp(10px,1.2vw,18px);
+  background:var(--surface);
+}
+.eng{
+  width:100%;
+  text-align:center;
+  font-size:clamp(23px,3vw,48px);
+  line-height:1.2;
+  font-weight:820;
+  letter-spacing:-.035em;
+}
+.target{
+  text-decoration:underline;
+  text-decoration-thickness:.08em;
+  text-underline-offset:.13em;
+}
+.controls{
+  position:fixed;
+  right:14px;
+  bottom:14px;
+  display:flex;
+  gap:7px;
+  z-index:20;
+  opacity:.22;
+  transition:opacity .2s;
+}
+.controls:hover,.controls:focus-within{opacity:1}
+.btn{
+  min-width:44px;
+  min-height:42px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:rgba(255,255,255,.94);
+  color:var(--ink);
+  font-weight:850;
+  cursor:pointer;
+}
+.page{
+  display:grid;
+  place-items:center;
+  min-width:48px;
+  color:var(--muted);
+  font-size:12px;
+}
+@media(max-width:850px){
+  html,body{overflow:auto;height:auto}
+  .slide{height:auto;min-height:100vh}
+  .grid20{grid-template-columns:repeat(2,1fr);grid-template-rows:none}
+  .item{min-height:88px}
+  .word{font-size:clamp(19px,5vw,30px)}
+  .sentence-list{grid-template-rows:none}
+  .sentence-item{min-height:120px}
+}
+</style>
+</head>
+<body>
+
+<section class="slide active">
+  <header class="header">
+    <div>
+      <p class="eyebrow">EIKEN GRADE 4 / NOUN QUIZ</p>
+      <h1>Part 1 — Nouns</h1>
+    </div>
+    <div class="guide">英語の意味を日本語で書いてください。<br>01–20</div>
+  </header>
+  <div class="grid20">
+    <div class="item"><span class="num">01</span><span class="word">family</span></div>
+<div class="item"><span class="num">02</span><span class="word">child</span></div>
+<div class="item"><span class="num">03</span><span class="word">people</span></div>
+<div class="item"><span class="num">04</span><span class="word">teacher</span></div>
+<div class="item"><span class="num">05</span><span class="word">friend</span></div>
+<div class="item"><span class="num">06</span><span class="word">class</span></div>
+<div class="item"><span class="num">07</span><span class="word">homework</span></div>
+<div class="item"><span class="num">08</span><span class="word">information</span></div>
+<div class="item"><span class="num">09</span><span class="word">library</span></div>
+<div class="item"><span class="num">10</span><span class="word">question</span></div>
+<div class="item"><span class="num">11</span><span class="word">room</span></div>
+<div class="item"><span class="num">12</span><span class="word">clothes</span></div>
+<div class="item"><span class="num">13</span><span class="word">money</span></div>
+<div class="item"><span class="num">14</span><span class="word">picture</span></div>
+<div class="item"><span class="num">15</span><span class="word">umbrella</span></div>
+<div class="item"><span class="num">16</span><span class="word">bread</span></div>
+<div class="item"><span class="num">17</span><span class="word">rice</span></div>
+<div class="item"><span class="num">18</span><span class="word">milk</span></div>
+<div class="item"><span class="num">19</span><span class="word">food</span></div>
+<div class="item"><span class="num">20</span><span class="word">water</span></div>
+  </div>
+</section>
+
+<section class="slide">
+  <header class="header">
+    <div>
+      <p class="eyebrow">EIKEN GRADE 4 / NOUN QUIZ</p>
+      <h1>Part 2 — Nouns</h1>
+    </div>
+    <div class="guide">英語の意味を日本語で書いてください。<br>21–40</div>
+  </header>
+  <div class="grid20">
+    <div class="item"><span class="num">21</span><span class="word">actor</span></div>
+<div class="item"><span class="num">22</span><span class="word">aunt</span></div>
+<div class="item"><span class="num">23</span><span class="word">brother</span></div>
+<div class="item"><span class="num">24</span><span class="word">doctor</span></div>
+<div class="item"><span class="num">25</span><span class="word">father</span></div>
+<div class="item"><span class="num">26</span><span class="word">mother</span></div>
+<div class="item"><span class="num">27</span><span class="word">sister</span></div>
+<div class="item"><span class="num">28</span><span class="word">student</span></div>
+<div class="item"><span class="num">29</span><span class="word">address</span></div>
+<div class="item"><span class="num">30</span><span class="word">classroom</span></div>
+<div class="item"><span class="num">31</span><span class="word">dictionary</span></div>
+<div class="item"><span class="num">32</span><span class="word">exam</span></div>
+<div class="item"><span class="num">33</span><span class="word">idea</span></div>
+<div class="item"><span class="num">34</span><span class="word">lesson</span></div>
+<div class="item"><span class="num">35</span><span class="word">magazine</span></div>
+<div class="item"><span class="num">36</span><span class="word">music</span></div>
+<div class="item"><span class="num">37</span><span class="word">news</span></div>
+<div class="item"><span class="num">38</span><span class="word">notebook</span></div>
+<div class="item"><span class="num">39</span><span class="word">textbook</span></div>
+<div class="item"><span class="num">40</span><span class="word">university</span></div>
+  </div>
+</section>
+
+<section class="slide">
+  <header class="header">
+    <div>
+      <p class="eyebrow">EIKEN GRADE 4 / NOUN QUIZ</p>
+      <h1>Part 3 — In Context</h1>
+    </div>
+    <div class="guide">下線の名詞を含む文の意味を日本語で書いてください。<br>41–45</div>
+  </header>
+  <div class="sentence-list">
+    <div class="sentence-item"><span class="num">41</span><div class="eng">We arrived at the <span class="target">airport</span> early.</div></div>
+<div class="sentence-item"><span class="num">42</span><div class="eng">My mother works at a <span class="target">hospital</span>.</div></div>
+<div class="sentence-item"><span class="num">43</span><div class="eng">The <span class="target">station</span> is near my house.</div></div>
+<div class="sentence-item"><span class="num">44</span><div class="eng">We go to <span class="target">school</span> every weekday.</div></div>
+<div class="sentence-item"><span class="num">45</span><div class="eng">People around the <span class="target">world</span> use the Internet.</div></div>
+  </div>
+</section>
+
+<section class="slide">
+  <header class="header">
+    <div>
+      <p class="eyebrow">EIKEN GRADE 4 / NOUN QUIZ</p>
+      <h1>Part 4 — In Context</h1>
+    </div>
+    <div class="guide">下線の名詞を含む文の意味を日本語で書いてください。<br>46–50</div>
+  </header>
+  <div class="sentence-list">
+    <div class="sentence-item"><span class="num">46</span><div class="eng">I use this <span class="target">computer</span> for my homework.</div></div>
+<div class="sentence-item"><span class="num">47</span><div class="eng">My father is cooking in the <span class="target">kitchen</span>.</div></div>
+<div class="sentence-item"><span class="num">48</span><div class="eng">Don't forget your <span class="target">passport</span>.</div></div>
+<div class="sentence-item"><span class="num">49</span><div class="eng">I bought a <span class="target">ticket</span> for the train.</div></div>
+<div class="sentence-item"><span class="num">50</span><div class="eng">Please open the <span class="target">window</span>.</div></div>
+  </div>
+</section>
+
+<div class="controls">
+  <button class="btn" id="prev" aria-label="前のページ">←</button>
+  <div class="page"><span id="page">1</span> / 4</div>
+  <button class="btn" id="next" aria-label="次のページ">→</button>
+  <button class="btn" id="full" aria-label="全画面表示">⛶</button>
+</div>
+
+<script>
+(() => {
+  const slides=[...document.querySelectorAll('.slide')];
+  let index=0;
+  const page=document.querySelector('#page');
+
+  function show(i){
+    index=Math.max(0,Math.min(slides.length-1,i));
+    slides.forEach((s,n)=>s.classList.toggle('active',n===index));
+    page.textContent=index+1;
+    window.scrollTo(0,0);
+  }
+
+  document.querySelector('#prev').onclick=()=>show(index-1);
+  document.querySelector('#next').onclick=()=>show(index+1);
+  document.querySelector('#full').onclick=()=>{
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  };
+
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();show(index+1);}
+    if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();show(index-1);}
+    if(e.key==='Home')show(0);
+    if(e.key==='End')show(slides.length-1);
+  });
+
+  let startX=0;
+  document.addEventListener('touchstart',e=>{startX=e.changedTouches[0].clientX},{passive:true});
+  document.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-startX;
+    if(Math.abs(dx)>60)show(index+(dx<0?1:-1));
+  },{passive:true});
+})();
+</script>
+</body>
+</html>
